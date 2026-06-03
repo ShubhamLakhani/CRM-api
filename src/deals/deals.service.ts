@@ -8,6 +8,24 @@ export class DealsService {
   constructor(private prisma: PrismaService) {}
 
   async create(createDealDto: CreateDealDto, creatorId: string, organizationId: string) {
+    if ((createDealDto as any).companyId) {
+      const company = await this.prisma.company.findFirst({
+        where: { id: (createDealDto as any).companyId, organizationId, deletedAt: null },
+      });
+      if (!company) {
+        throw new NotFoundException(`Company not found in this organization`);
+      }
+    }
+
+    if (createDealDto.contactId) {
+      const contact = await this.prisma.contact.findFirst({
+        where: { id: createDealDto.contactId, organizationId, deletedAt: null },
+      });
+      if (!contact) {
+        throw new NotFoundException(`Contact not found in this organization`);
+      }
+    }
+
     const deal = await this.prisma.deal.create({
       data: {
         ...createDealDto,
@@ -90,6 +108,24 @@ export class DealsService {
 
   async update(id: string, updateDealDto: UpdateDealDto, userId: string, organizationId: string) {
     const existing = await this.findOne(id, organizationId);
+
+    if ((updateDealDto as any).companyId) {
+      const company = await this.prisma.company.findFirst({
+        where: { id: (updateDealDto as any).companyId, organizationId, deletedAt: null },
+      });
+      if (!company) {
+        throw new NotFoundException(`Company not found in this organization`);
+      }
+    }
+
+    if (updateDealDto.contactId) {
+      const contact = await this.prisma.contact.findFirst({
+        where: { id: updateDealDto.contactId, organizationId, deletedAt: null },
+      });
+      if (!contact) {
+        throw new NotFoundException(`Contact not found in this organization`);
+      }
+    }
 
     const deal = await this.prisma.deal.update({
       where: { id },

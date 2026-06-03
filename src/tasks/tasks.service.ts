@@ -11,6 +11,24 @@ export class TasksService {
   async create(createTaskDto: CreateTaskDto, creatorId: string, organizationId: string) {
     const { title, description, status, priority, dueDate, dealId, assigneeId } = createTaskDto;
 
+    if (dealId) {
+      const deal = await this.prisma.deal.findFirst({
+        where: { id: dealId, organizationId, deletedAt: null },
+      });
+      if (!deal) {
+        throw new NotFoundException(`Deal not found in this organization`);
+      }
+    }
+
+    if (assigneeId) {
+      const user = await this.prisma.user.findFirst({
+        where: { id: assigneeId, organizationId },
+      });
+      if (!user) {
+        throw new NotFoundException(`Assignee not found in this organization`);
+      }
+    }
+
     // Build task record
     const task = await this.prisma.task.create({
       data: {
@@ -94,6 +112,24 @@ export class TasksService {
   async update(id: string, updateTaskDto: UpdateTaskDto, userId: string, organizationId: string) {
     // Assert tenant ownership and active state first
     const existing = await this.findOne(id, organizationId);
+
+    if (updateTaskDto.dealId) {
+      const deal = await this.prisma.deal.findFirst({
+        where: { id: updateTaskDto.dealId, organizationId, deletedAt: null },
+      });
+      if (!deal) {
+        throw new NotFoundException(`Deal not found in this organization`);
+      }
+    }
+
+    if (updateTaskDto.assigneeId) {
+      const user = await this.prisma.user.findFirst({
+        where: { id: updateTaskDto.assigneeId, organizationId },
+      });
+      if (!user) {
+        throw new NotFoundException(`Assignee not found in this organization`);
+      }
+    }
 
     const data: any = { ...updateTaskDto };
     if (updateTaskDto.dueDate !== undefined) {

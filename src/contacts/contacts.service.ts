@@ -11,6 +11,24 @@ export class ContactsService {
   async create(createContactDto: CreateContactDto, creatorId: string, organizationId: string) {
     const { name, email, phone, companyId, status, ownerId } = createContactDto;
 
+    if (companyId) {
+      const company = await this.prisma.company.findFirst({
+        where: { id: companyId, organizationId, deletedAt: null },
+      });
+      if (!company) {
+        throw new NotFoundException(`Company not found in this organization`);
+      }
+    }
+
+    if (ownerId) {
+      const user = await this.prisma.user.findFirst({
+        where: { id: ownerId, organizationId },
+      });
+      if (!user) {
+        throw new NotFoundException(`Assigned owner not found in this organization`);
+      }
+    }
+
     // Build contact record
     const contact = await this.prisma.contact.create({
       data: {
@@ -137,6 +155,24 @@ export class ContactsService {
   async update(id: string, updateContactDto: UpdateContactDto, userId: string, organizationId: string) {
     // Assert tenant ownership and active state
     await this.findOne(id, organizationId);
+
+    if (updateContactDto.companyId) {
+      const company = await this.prisma.company.findFirst({
+        where: { id: updateContactDto.companyId, organizationId, deletedAt: null },
+      });
+      if (!company) {
+        throw new NotFoundException(`Company not found in this organization`);
+      }
+    }
+
+    if (updateContactDto.ownerId) {
+      const user = await this.prisma.user.findFirst({
+        where: { id: updateContactDto.ownerId, organizationId },
+      });
+      if (!user) {
+        throw new NotFoundException(`Assigned owner not found in this organization`);
+      }
+    }
 
     const contact = await this.prisma.contact.update({
       where: { id },
