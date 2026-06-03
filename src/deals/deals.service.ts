@@ -1,0 +1,202 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../database/prisma.service';
+import { CreateDealDto } from './dto/create-deal.dto';
+import { UpdateDealDto } from './dto/update-deal.dto';
+
+@Injectable()
+export class DealsService {
+  constructor(private prisma: PrismaService) {}
+
+  async create(createDealDto: CreateDealDto, creatorId: string, organizationId: string) {
+    const deal = await this.prisma.deal.create({
+      data: {
+        ...createDealDto,
+        ownerId: creatorId,
+        createdById: creatorId,
+        organizationId,
+      },
+    });
+
+    // Auto-log activity
+    await this.prisma.activity.create({
+      data: {
+        type: 'SYSTEM_UPDATE',
+        description: `Created deal "${deal.title}" with value $${deal.value || 0}`,
+        dealId: deal.id,
+        contactId: deal.contactId,
+        organizationId,
+        userId: creatorId,
+      },
+    });
+
+    return deal;
+  }
+
+  async findAll(organizationId: string) {
+    return this.prisma.deal.findMany({
+      where: {
+        organizationId,
+        deletedAt: null, // Exclude soft deleted deals
+      },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        contact: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            company: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async findOne(id: string, organizationId: string) {
+    const deal = await this.prisma.deal.findFirst({
+      where: {
+        id,
+        organizationId,
+        deletedAt: null, // Exclude soft deleted deals
+      },
+      include: {
+        contact: {
+          include: {
+            company: true,
+          },
+        },
+        activities: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            user: {
+              select: { name: true, email: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!deal) {
+      throw new NotFoundException(`Deal with ID ${id} not found or belongs to another workspace`);
+    }
+
+    return deal;
+  }
+
+  async update(id: string, updateDealDto: UpdateDealDto, userId: string, organizationId: string) {
+    const existing = await this.findOne(id, organizationId);
+
+    const deal = await this.prisma.deal.update({
+      where: { id },
+      data: updateDealDto,
+    });
+
+    // Handle stage change updates specifically for neat logs
+    if (updateDealDto.stage && updateDealDto.stage !== existing.stage) {
+      await this.prisma.activity.create({
+        data: {
+          type: 'SYSTEM_UPDATE',
+          description: `Moved deal "${deal.title}" from ${existing.stage} to ${deal.stage}`,
+          dealId: deal.id,
+          contactId: deal.contactId,
+          organizationId,
+          userId,
+        },
+      });
+    } else {
+      const changes = Object.keys(updateDealDto).join(', ');
+      await this.prisma.activity.create({
+        data: {
+          type: 'SYSTEM_UPDATE',
+          description: `Updated deal "${deal.title}" fields: ${changes}`,
+          dealId: deal.id,
+          contactId: deal.contactId,
+          organizationId,
+          userId,
+        },
+      });
+    }
+
+    return deal;
+  }
+
+  async remove(id: string, userId: string, organizationId: string) {
+    await this.findOne(id, organizationId);
+
+    // Perform SOFT DELETE instead of hard record purging
+    await this.prisma.deal.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+
+    // Log soft-deletion action
+    await this.prisma.activity.create({
+      data: {
+        type: 'SYSTEM_UPDATE',
+        description: `Soft deleted deal ID ${id}`,
+        organizationId,
+        userId,
+      },
+    });
+
+    return { success: true };
+  }
+
+  async addNote(dealId: string, description: string, userId: string, organizationId: string) {
+    const deal = await this.findOne(dealId, organizationId);
+
+    return this.prisma.activity.create({
+      data: {
+        type: 'NOTE',
+        description,
+        dealId,
+        contactId: deal.contactId,
+        organizationId,
+        userId,
+      },
+    });
+  }
+
+  async getStats(organizationId: string) {
+    const deals = await this.prisma.deal.findMany({
+      where: {
+        organizationId,
+        deletedAt: null, // Exclude soft deleted deals
+      },
+    });
+
+    const totalPipelineValue = deals.reduce((sum: number, d: any) => sum + (d.value || 0), 0);
+    const wonDeals = deals.filter((d: any) => d.stage === 'WON');
+    const closedDeals = deals.filter((d: any) => d.stage === 'WON' || d.stage === 'LOST');
+
+    const totalWonValue = wonDeals.reduce((sum: number, d: any) => sum + (d.value || 0), 0);
+    const winRate = closedDeals.length > 0 ? (wonDeals.length / closedDeals.length) * 100 : 0;
+
+    // Get recent activity across all contacts/deals
+    const recentActivities = await this.prisma.activity.findMany({
+      where: {
+        organizationId,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      include: {
+        contact: { select: { name: true } },
+        deal: { select: { title: true } },
+      },
+    });
+
+    return {
+      totalDealsCount: deals.length,
+      totalPipelineValue,
+      totalWonValue,
+      winRate: Math.round(winRate * 10) / 10,
+      activeDealsCount: deals.filter((d: any) => d.stage !== 'WON' && d.stage !== 'LOST').length,
+      recentActivities,
+    };
+  }
+}
