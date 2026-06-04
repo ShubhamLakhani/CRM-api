@@ -3,10 +3,15 @@ import { PrismaService } from '../database/prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompaniesQueryDto } from './dto/companies-query.dto';
+import { DomainEventEmitter } from '../events/domain-event-emitter';
+import { DomainEventType } from '../events/domain-events';
 
 @Injectable()
 export class CompaniesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventEmitter: DomainEventEmitter,
+  ) {}
 
   async create(createCompanyDto: CreateCompanyDto, creatorId: string, organizationId: string) {
     const { name, domain, industry, employees, dealValue } = createCompanyDto;
@@ -23,16 +28,6 @@ export class CompaniesService {
       },
     });
 
-    // Automatically record activity log
-    await this.prisma.activity.create({
-      data: {
-        type: 'SYSTEM_UPDATE',
-        description: `Registered enterprise company account "${company.name}"`,
-        organizationId,
-        userId: creatorId,
-      },
-    });
-
     // If an initial deal value was specified, automatically provision a default lead deal linked to the company
     if (dealValue && dealValue > 0) {
       const deal = await this.prisma.deal.create({
@@ -46,17 +41,14 @@ export class CompaniesService {
           organizationId,
         },
       });
-
-      await this.prisma.activity.create({
-        data: {
-          type: 'SYSTEM_UPDATE',
-          description: `Created initial opportunity "${deal.title}" with value $${dealValue} linked to company "${company.name}"`,
-          dealId: deal.id,
-          organizationId,
-          userId: creatorId,
-        },
-      });
     }
+
+    this.eventEmitter.emit(DomainEventType.COMPANY_CREATED, {
+      companyId: company.id,
+      organizationId,
+      userId: creatorId,
+      name: company.name,
+    });
 
     return company;
   }
@@ -179,13 +171,13 @@ export class CompaniesService {
       data: updateCompanyDto,
     });
 
-    await this.prisma.activity.create({
-      data: {
-        type: 'SYSTEM_UPDATE',
-        description: `Updated profile details for company "${company.name}"`,
-        organizationId,
-        userId,
-      },
+    const changes = Object.keys(updateCompanyDto).join(', ');
+
+    this.eventEmitter.emit(DomainEventType.COMPANY_UPDATED, {
+      companyId: company.id,
+      organizationId,
+      userId,
+      changes,
     });
 
     return company;
@@ -198,15 +190,6 @@ export class CompaniesService {
     await this.prisma.company.update({
       where: { id },
       data: { deletedAt: new Date() },
-    });
-
-    await this.prisma.activity.create({
-      data: {
-        type: 'SYSTEM_UPDATE',
-        description: `Soft deleted company profile "${company.name}"`,
-        organizationId,
-        userId,
-      },
     });
 
     return { success: true };

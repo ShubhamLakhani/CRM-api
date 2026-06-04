@@ -40,17 +40,7 @@ export class DealsService {
       },
     });
 
-    // Auto-log activity
-    await this.prisma.activity.create({
-      data: {
-        type: 'SYSTEM_UPDATE',
-        description: `Created deal "${deal.title}" with value $${deal.value || 0}`,
-        dealId: deal.id,
-        contactId: deal.contactId,
-        organizationId,
-        userId: creatorId,
-      },
-    });
+
 
     this.eventEmitter.emit(DomainEventType.DEAL_CREATED, {
       dealId: deal.id,
@@ -101,14 +91,7 @@ export class DealsService {
             company: true,
           },
         },
-        activities: {
-          orderBy: { createdAt: 'desc' },
-          include: {
-            user: {
-              select: { name: true, email: true },
-            },
-          },
-        },
+
       },
     });
 
@@ -147,16 +130,7 @@ export class DealsService {
 
     // Handle stage change updates specifically for neat logs
     if (updateDealDto.stage && updateDealDto.stage !== existing.stage) {
-      await this.prisma.activity.create({
-        data: {
-          type: 'SYSTEM_UPDATE',
-          description: `Moved deal "${deal.title}" from ${existing.stage} to ${deal.stage}`,
-          dealId: deal.id,
-          contactId: deal.contactId,
-          organizationId,
-          userId,
-        },
-      });
+
 
       this.eventEmitter.emit(DomainEventType.DEAL_STAGE_CHANGED, {
         dealId: deal.id,
@@ -183,16 +157,6 @@ export class DealsService {
       }
     } else {
       const changes = Object.keys(updateDealDto).join(', ');
-      await this.prisma.activity.create({
-        data: {
-          type: 'SYSTEM_UPDATE',
-          description: `Updated deal "${deal.title}" fields: ${changes}`,
-          dealId: deal.id,
-          contactId: deal.contactId,
-          organizationId,
-          userId,
-        },
-      });
 
       this.eventEmitter.emit(DomainEventType.DEAL_UPDATED, {
         dealId: deal.id,
@@ -214,15 +178,7 @@ export class DealsService {
       data: { deletedAt: new Date() },
     });
 
-    // Log soft-deletion action
-    await this.prisma.activity.create({
-      data: {
-        type: 'SYSTEM_UPDATE',
-        description: `Soft deleted deal ID ${id}`,
-        organizationId,
-        userId,
-      },
-    });
+
 
     return { success: true };
   }
@@ -232,12 +188,13 @@ export class DealsService {
 
     return this.prisma.activity.create({
       data: {
-        type: 'NOTE',
-        description,
-        dealId,
-        contactId: deal.contactId,
         organizationId,
-        userId,
+        actorId: userId,
+        entityType: 'deal',
+        entityId: dealId,
+        action: 'note_added',
+        title: 'Note Added',
+        description,
       },
     });
   }
@@ -264,10 +221,7 @@ export class DealsService {
       },
       orderBy: { createdAt: 'desc' },
       take: 5,
-      include: {
-        contact: { select: { name: true } },
-        deal: { select: { title: true } },
-      },
+
     });
 
     return {

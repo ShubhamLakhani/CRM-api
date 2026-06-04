@@ -3,6 +3,9 @@ export enum DomainEventType {
   CONTACT_UPDATED = 'CONTACT_UPDATED',
   CONTACT_DELETED = 'CONTACT_DELETED',
 
+  COMPANY_CREATED = 'COMPANY_CREATED',
+  COMPANY_UPDATED = 'COMPANY_UPDATED',
+
   DEAL_CREATED = 'DEAL_CREATED',
   DEAL_UPDATED = 'DEAL_UPDATED',
   DEAL_STAGE_CHANGED = 'DEAL_STAGE_CHANGED',
@@ -39,6 +42,20 @@ export interface ContactDeletedPayload {
   contactId: string;
   organizationId: string;
   userId: string;
+}
+
+export interface CompanyCreatedPayload {
+  companyId: string;
+  organizationId: string;
+  userId: string;
+  name: string;
+}
+
+export interface CompanyUpdatedPayload {
+  companyId: string;
+  organizationId: string;
+  userId: string;
+  changes: string;
 }
 
 export interface DealCreatedPayload {
@@ -139,6 +156,9 @@ export interface DomainEventPayloads {
   [DomainEventType.CONTACT_CREATED]: ContactCreatedPayload;
   [DomainEventType.CONTACT_UPDATED]: ContactUpdatedPayload;
   [DomainEventType.CONTACT_DELETED]: ContactDeletedPayload;
+
+  [DomainEventType.COMPANY_CREATED]: CompanyCreatedPayload;
+  [DomainEventType.COMPANY_UPDATED]: CompanyUpdatedPayload;
 
   [DomainEventType.DEAL_CREATED]: DealCreatedPayload;
   [DomainEventType.DEAL_UPDATED]: DealUpdatedPayload;

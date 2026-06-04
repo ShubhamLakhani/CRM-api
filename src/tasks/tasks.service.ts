@@ -53,17 +53,6 @@ export class TasksService {
       },
     });
 
-    // Auto-record activity logs
-    await this.prisma.activity.create({
-      data: {
-        type: 'SYSTEM_UPDATE',
-        description: `Created task "${task.title}"`,
-        taskId: task.id,
-        dealId: task.dealId,
-        organizationId,
-        userId: creatorId,
-      },
-    });
 
     this.eventEmitter.emit(DomainEventType.TASK_CREATED, {
       taskId: task.id,
@@ -167,30 +156,6 @@ export class TasksService {
       },
     });
 
-    // Auto-record status updates or properties modification
-    if (updateTaskDto.status && updateTaskDto.status !== existing.status) {
-      await this.prisma.activity.create({
-        data: {
-          type: 'SYSTEM_UPDATE',
-          description: `Changed task status from ${existing.status} to ${task.status}`,
-          taskId: task.id,
-          dealId: task.dealId,
-          organizationId,
-          userId,
-        },
-      });
-    } else {
-      await this.prisma.activity.create({
-        data: {
-          type: 'SYSTEM_UPDATE',
-          description: `Updated task "${task.title}" properties`,
-          taskId: task.id,
-          dealId: task.dealId,
-          organizationId,
-          userId,
-        },
-      });
-    }
 
     if (updateTaskDto.status === 'DONE' && existing.status !== 'DONE') {
       this.eventEmitter.emit(DomainEventType.TASK_COMPLETED, {
@@ -230,14 +195,6 @@ export class TasksService {
       data: { deletedAt: new Date() },
     });
 
-    await this.prisma.activity.create({
-      data: {
-        type: 'SYSTEM_UPDATE',
-        description: `Soft deleted task "${task.title}"`,
-        organizationId,
-        userId,
-      },
-    });
 
     return { success: true };
   }

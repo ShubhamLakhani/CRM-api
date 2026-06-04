@@ -48,17 +48,6 @@ export class ContactsService {
       },
     });
 
-    // Automatically record activity
-    await this.prisma.activity.create({
-      data: {
-        type: 'SYSTEM_UPDATE',
-        description: `Created contact ${contact.name}`,
-        contactId: contact.id,
-        organizationId,
-        userId: creatorId,
-      },
-    });
-
     this.eventEmitter.emit(DomainEventType.CONTACT_CREATED, {
       contactId: contact.id,
       organizationId,
@@ -145,15 +134,6 @@ export class ContactsService {
         deals: {
           where: { deletedAt: null },
         },
-        activities: {
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-          include: {
-            user: {
-              select: { name: true, email: true },
-            },
-          },
-        },
       },
     });
 
@@ -193,15 +173,6 @@ export class ContactsService {
 
     // Track changed fields and write logs
     const changes = Object.keys(updateContactDto).join(', ');
-    await this.prisma.activity.create({
-      data: {
-        type: 'SYSTEM_UPDATE',
-        description: `Updated contact fields: ${changes}`,
-        contactId: contact.id,
-        organizationId,
-        userId,
-      },
-    });
 
     this.eventEmitter.emit(DomainEventType.CONTACT_UPDATED, {
       contactId: contact.id,
@@ -221,17 +192,6 @@ export class ContactsService {
     await this.prisma.contact.update({
       where: { id },
       data: { deletedAt: new Date() },
-    });
-
-    // Log soft-deletion action
-    await this.prisma.activity.create({
-      data: {
-        type: 'SYSTEM_UPDATE',
-        description: `Soft deleted contact ${contact.name}`,
-        contactId: contact.id,
-        organizationId,
-        userId,
-      },
     });
 
     this.eventEmitter.emit(DomainEventType.CONTACT_DELETED, {

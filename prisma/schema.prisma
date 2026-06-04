@@ -57,7 +57,7 @@ model User {
   createdDeals     Deal[]     @relation("DealCreator")
   assignedTasks    Task[]     @relation("TaskAssignee")
   createdTasks     Task[]     @relation("TaskCreator")
-  activities       Activity[]
+  activities       Activity[] @relation("Actor")
   sessions         Session[]
   auditLogs        AuditLog[]
   sentInvites      OrganizationInvite[] @relation("Inviter")
@@ -138,7 +138,6 @@ model Contact {
 
   // Relations
   deals      Deal[]
-  activities Activity[]
 
   @@index([organizationId])
   @@index([companyId])
@@ -175,7 +174,6 @@ model Deal {
   createdBy   User   @relation("DealCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
   // Relations
-  activities Activity[]
   tasks      Task[]
 
   @@index([organizationId])
@@ -213,9 +211,6 @@ model Task {
   createdById String
   createdBy   User    @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
-  // Relations
-  activities Activity[]
-
   @@index([organizationId])
   @@index([dealId])
   @@index([assigneeId])
@@ -227,32 +222,22 @@ model Task {
 
 // 7. Audit Logging history timeline (Multi-Tenancy Operational Stream)
 model Activity {
-  id          String   @id @default(uuid())
-  type        String // NOTE, CALL, EMAIL, MEETING, SYSTEM_UPDATE
-  description String
-  createdAt   DateTime @default(now())
-
-  // Connections (Nullable)
-  contactId String?
-  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  dealId    String?
-  deal      Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  taskId    String?
-  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  // Multi-Tenancy
+  id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  // Creator identity
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actorId        String?
+  actor          User?        @relation("Actor", fields: [actorId], references: [id], onDelete: SetNull)
+  entityType     String       // e.g. 'contact', 'company', 'deal', 'task', 'user'
+  entityId       String
+  action         String       // e.g. 'created', 'updated', etc.
+  title          String
+  description    String
+  metadata       Json?
+  createdAt      DateTime     @default(now())
 
   @@index([organizationId])
-  @@index([contactId])
-  @@index([dealId])
-  @@index([taskId])
-  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 // 8. Session Management (SaaS Readiness Foundations)

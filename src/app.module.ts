@@ -18,6 +18,7 @@ import { EventsModule } from './events/events.module';
 import { RedisModule } from './redis/redis.module';
 import { QueueModule } from './queue/queue.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ActivitiesModule } from './activities/activities.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     RedisModule,
     QueueModule,
     NotificationsModule,
+    ActivitiesModule,
     AuthModule,
     ContactsModule,
     DealsModule,
