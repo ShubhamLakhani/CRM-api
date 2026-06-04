@@ -3,10 +3,15 @@ import { PrismaService } from '../database/prisma.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TasksQueryDto } from './dto/tasks-query.dto';
+import { DomainEventEmitter } from '../events/domain-event-emitter';
+import { DomainEventType } from '../events/domain-events';
 
 @Injectable()
 export class TasksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventEmitter: DomainEventEmitter,
+  ) {}
 
   async create(createTaskDto: CreateTaskDto, creatorId: string, organizationId: string) {
     const { title, description, status, priority, dueDate, dealId, assigneeId } = createTaskDto;
@@ -59,6 +64,23 @@ export class TasksService {
         userId: creatorId,
       },
     });
+
+    this.eventEmitter.emit(DomainEventType.TASK_CREATED, {
+      taskId: task.id,
+      organizationId,
+      userId: creatorId,
+      title: task.title,
+    });
+
+    if (task.assigneeId) {
+      this.eventEmitter.emit(DomainEventType.TASK_ASSIGNED, {
+        taskId: task.id,
+        assigneeId: task.assigneeId!,
+        assignedById: creatorId,
+        organizationId,
+        title: task.title,
+      });
+    }
 
     return task;
   }
@@ -167,6 +189,32 @@ export class TasksService {
           organizationId,
           userId,
         },
+      });
+    }
+
+    if (updateTaskDto.status === 'DONE' && existing.status !== 'DONE') {
+      this.eventEmitter.emit(DomainEventType.TASK_COMPLETED, {
+        taskId: task.id,
+        organizationId,
+        userId,
+      });
+    } else {
+      const changes = Object.keys(updateTaskDto).join(', ');
+      this.eventEmitter.emit(DomainEventType.TASK_UPDATED, {
+        taskId: task.id,
+        organizationId,
+        userId,
+        changes,
+      });
+    }
+
+    if (updateTaskDto.assigneeId && updateTaskDto.assigneeId !== existing.assigneeId) {
+      this.eventEmitter.emit(DomainEventType.TASK_ASSIGNED, {
+        taskId: task.id,
+        assigneeId: task.assigneeId!,
+        assignedById: userId,
+        organizationId,
+        title: task.title,
       });
     }
 

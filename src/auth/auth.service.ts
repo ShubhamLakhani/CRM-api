@@ -5,12 +5,15 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../database/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { DomainEventEmitter } from '../events/domain-event-emitter';
+import { DomainEventType } from '../events/domain-events';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private eventEmitter: DomainEventEmitter,
   ) {}
 
   async register(registerDto: RegisterDto, ipAddress: string, userAgent: string) {
@@ -412,6 +415,12 @@ export class AuthService {
     });
 
     const permissions = await this.getPermissions(session.userId, organizationId);
+
+    this.eventEmitter.emit(DomainEventType.WORKSPACE_SWITCHED, {
+      userId: session.userId,
+      fromOrganizationId: session.activeOrganizationId,
+      toOrganizationId: organizationId,
+    });
 
     return {
       user: {

@@ -3,10 +3,15 @@ import { PrismaService } from '../database/prisma.service';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { ContactsQueryDto } from './dto/contacts-query.dto';
+import { DomainEventEmitter } from '../events/domain-event-emitter';
+import { DomainEventType } from '../events/domain-events';
 
 @Injectable()
 export class ContactsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventEmitter: DomainEventEmitter,
+  ) {}
 
   async create(createContactDto: CreateContactDto, creatorId: string, organizationId: string) {
     const { name, email, phone, companyId, status, ownerId } = createContactDto;
@@ -52,6 +57,13 @@ export class ContactsService {
         organizationId,
         userId: creatorId,
       },
+    });
+
+    this.eventEmitter.emit(DomainEventType.CONTACT_CREATED, {
+      contactId: contact.id,
+      organizationId,
+      userId: creatorId,
+      name: contact.name,
     });
 
     return contact;
@@ -191,6 +203,13 @@ export class ContactsService {
       },
     });
 
+    this.eventEmitter.emit(DomainEventType.CONTACT_UPDATED, {
+      contactId: contact.id,
+      organizationId,
+      userId,
+      changes,
+    });
+
     return contact;
   }
 
@@ -213,6 +232,12 @@ export class ContactsService {
         organizationId,
         userId,
       },
+    });
+
+    this.eventEmitter.emit(DomainEventType.CONTACT_DELETED, {
+      contactId: contact.id,
+      organizationId,
+      userId,
     });
 
     return { success: true, message: 'Contact successfully soft deleted' };

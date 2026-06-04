@@ -2,10 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CreateDealDto } from './dto/create-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
+import { DomainEventEmitter } from '../events/domain-event-emitter';
+import { DomainEventType } from '../events/domain-events';
 
 @Injectable()
 export class DealsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventEmitter: DomainEventEmitter,
+  ) {}
 
   async create(createDealDto: CreateDealDto, creatorId: string, organizationId: string) {
     if ((createDealDto as any).companyId) {
@@ -45,6 +50,14 @@ export class DealsService {
         organizationId,
         userId: creatorId,
       },
+    });
+
+    this.eventEmitter.emit(DomainEventType.DEAL_CREATED, {
+      dealId: deal.id,
+      organizationId,
+      userId: creatorId,
+      title: deal.title,
+      value: deal.value || 0,
     });
 
     return deal;
@@ -144,6 +157,30 @@ export class DealsService {
           userId,
         },
       });
+
+      this.eventEmitter.emit(DomainEventType.DEAL_STAGE_CHANGED, {
+        dealId: deal.id,
+        organizationId,
+        userId,
+        fromStage: existing.stage,
+        toStage: deal.stage,
+      });
+
+      if (deal.stage === 'WON') {
+        this.eventEmitter.emit(DomainEventType.DEAL_WON, {
+          dealId: deal.id,
+          organizationId,
+          userId,
+          value: deal.value || 0,
+        });
+      } else if (deal.stage === 'LOST') {
+        this.eventEmitter.emit(DomainEventType.DEAL_LOST, {
+          dealId: deal.id,
+          organizationId,
+          userId,
+          value: deal.value || 0,
+        });
+      }
     } else {
       const changes = Object.keys(updateDealDto).join(', ');
       await this.prisma.activity.create({
@@ -155,6 +192,13 @@ export class DealsService {
           organizationId,
           userId,
         },
+      });
+
+      this.eventEmitter.emit(DomainEventType.DEAL_UPDATED, {
+        dealId: deal.id,
+        organizationId,
+        userId,
+        changes,
       });
     }
 

@@ -14,11 +14,19 @@ import { TasksModule } from './tasks/tasks.module';
 import { InvitationsModule } from './invitations/invitations.module';
 import { FeaturesModule } from './features/features.module';
 import { OrganizationsModule } from './organizations/organizations.module';
+import { EventsModule } from './events/events.module';
+import { RedisModule } from './redis/redis.module';
+import { QueueModule } from './queue/queue.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
+    EventsModule,
     ConfigModule,
     DatabaseModule,
+    RedisModule,
+    QueueModule,
+    NotificationsModule,
     AuthModule,
     ContactsModule,
     DealsModule,

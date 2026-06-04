@@ -4,12 +4,15 @@ import { CreateInviteDto } from './dto/create-invite.dto';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from '../auth/auth.service';
+import { DomainEventEmitter } from '../events/domain-event-emitter';
+import { DomainEventType } from '../events/domain-events';
 
 @Injectable()
 export class InvitationsService {
   constructor(
     private prisma: PrismaService,
     private authService: AuthService,
+    private eventEmitter: DomainEventEmitter,
   ) {}
 
   async create(createInviteDto: CreateInviteDto, invitedById: string, organizationId: string) {
@@ -79,29 +82,36 @@ export class InvitationsService {
       },
     });
 
-    if (existingInvite) {
-      // Overwrite the existing invite to renew it with new token and expiration
-      return this.prisma.organizationInvite.update({
-        where: { id: existingInvite.id },
-        data: {
-          token,
-          roleId,
-          invitedById,
-          expiresAt,
-        },
-      });
-    }
+    const invite = existingInvite
+      ? await this.prisma.organizationInvite.update({
+          where: { id: existingInvite.id },
+          data: {
+            token,
+            roleId,
+            invitedById,
+            expiresAt,
+          },
+        })
+      : await this.prisma.organizationInvite.create({
+          data: {
+            email: email.toLowerCase(),
+            token,
+            organizationId,
+            roleId,
+            invitedById,
+            expiresAt,
+          },
+        });
 
-    return this.prisma.organizationInvite.create({
-      data: {
-        email: email.toLowerCase(),
-        token,
-        organizationId,
-        roleId,
-        invitedById,
-        expiresAt,
-      },
+    this.eventEmitter.emit(DomainEventType.USER_INVITED, {
+      inviteId: invite.id,
+      organizationId: invite.organizationId,
+      invitedById: invite.invitedById,
+      email: invite.email,
+      roleId: invite.roleId,
     });
+
+    return invite;
   }
 
   async findAllPending(organizationId: string) {
@@ -166,7 +176,7 @@ export class InvitationsService {
   }
 
   async accept(token: string, userId: string, userEmail: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. Lock the invitation using SELECT ... FOR UPDATE to prevent race conditions
       const invites = await tx.$queryRaw<any[]>`
         SELECT * FROM "OrganizationInvite" WHERE "token" = ${token} LIMIT 1 FOR UPDATE
@@ -223,10 +233,25 @@ export class InvitationsService {
 
       return {
         success: true,
+        inviteId: invite.id,
         organizationId: invite.organizationId,
         organizationName: org?.name || 'New Workspace',
+        roleId: invite.roleId,
       };
     });
+
+    this.eventEmitter.emit(DomainEventType.INVITE_ACCEPTED, {
+      inviteId: result.inviteId,
+      organizationId: result.organizationId,
+      userId,
+      roleId: result.roleId,
+    });
+
+    return {
+      success: result.success,
+      organizationId: result.organizationId,
+      organizationName: result.organizationName,
+    };
   }
 
   async validateToken(token: string) {
@@ -330,7 +355,14 @@ export class InvitationsService {
         },
       });
 
-      return { newUser, organizationId: invite.organizationId };
+      return { newUser, organizationId: invite.organizationId, inviteId: invite.id, roleId: invite.roleId };
+    });
+
+    this.eventEmitter.emit(DomainEventType.INVITE_ACCEPTED, {
+      inviteId: result.inviteId,
+      organizationId: result.organizationId,
+      userId: result.newUser.id,
+      roleId: result.roleId,
     });
 
     // Delegate to AuthService to create session and return response
