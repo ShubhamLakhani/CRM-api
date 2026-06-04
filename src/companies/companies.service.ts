@@ -88,19 +88,36 @@ export class CompaniesService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: {
-          deals: {
-            where: { deletedAt: null },
-            select: { value: true },
-          },
-        },
       }),
       this.prisma.company.count({ where }),
     ]);
 
-    // Compute active pipeline value dynamically
+    // Query aggregated deal values database-side using groupBy to optimize performance and memory footprint
+    const companyIds = companies.map((c) => c.id);
+    const dealValueMap = new Map<string, number>();
+
+    if (companyIds.length > 0) {
+      const dealAggregates = await this.prisma.deal.groupBy({
+        by: ['companyId'],
+        where: {
+          companyId: { in: companyIds },
+          deletedAt: null,
+          organizationId,
+        },
+        _sum: {
+          value: true,
+        },
+      });
+
+      dealAggregates.forEach((agg) => {
+        if (agg.companyId) {
+          dealValueMap.set(agg.companyId, agg._sum.value || 0);
+        }
+      });
+    }
+
     const mappedCompanies = companies.map((comp) => {
-      const computedDealValue = comp.deals.reduce((sum, d) => sum + (d.value || 0), 0);
+      const computedDealValue = dealValueMap.get(comp.id) || 0;
       return {
         id: comp.id,
         name: comp.name,

@@ -12,6 +12,9 @@ async function main() {
   await prisma.deal.deleteMany({});
   await prisma.contact.deleteMany({});
   await prisma.company.deleteMany({});
+  await prisma.session.deleteMany({});
+  await prisma.auditLog.deleteMany({});
+  await prisma.organizationMember.deleteMany({});
   await prisma.user.deleteMany({});
   await prisma.organization.deleteMany({});
 
@@ -21,7 +24,7 @@ async function main() {
   const org = await prisma.organization.create({
     data: {
       name: 'Apex HQ',
-      domain: 'apex.com',
+      slug: 'apex-hq',
     },
   });
 
@@ -37,7 +40,6 @@ async function main() {
       passwordHash: demoPasswordHash,
       name: 'Sarah Connor',
       role: 'ADMIN',
-      organizationId: org.id,
     },
   });
 
@@ -47,7 +49,29 @@ async function main() {
       passwordHash: demoPasswordHash,
       name: 'John Doe',
       role: 'USER',
+    },
+  });
+
+  // Update org owner
+  await prisma.organization.update({
+    where: { id: org.id },
+    data: { ownerId: demoUser.id },
+  });
+
+  // Create organization members
+  await prisma.organizationMember.create({
+    data: {
       organizationId: org.id,
+      userId: demoUser.id,
+      roleId: 'ADMIN',
+    },
+  });
+
+  await prisma.organizationMember.create({
+    data: {
+      organizationId: org.id,
+      userId: salesAgent.id,
+      roleId: 'USER',
     },
   });
 

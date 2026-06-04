@@ -6,15 +6,18 @@ import { UpdateContactDto } from './dto/update-contact.dto';
 import { ContactsQueryDto } from './dto/contacts-query.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { RequirePermissions } from '../auth/permissions.decorator';
 
 @ApiTags('contacts')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('contacts')
 export class ContactsController {
   constructor(private readonly contactsService: ContactsService) {}
 
   @Post()
+  @RequirePermissions('contacts.create')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new contact lead', description: 'Registers a contact and binds it automatically to the logged-in user\'s Organization.' })
   @ApiResponse({ status: 201, description: 'The contact has been successfully created.' })
@@ -53,6 +56,7 @@ export class ContactsController {
   }
 
   @Patch(':id')
+  @RequirePermissions('contacts.update')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update contact coordinates', description: 'Updates specific property fields of an active contact and records an audit log.' })
   @ApiResponse({ status: 200, description: 'Contact details successfully updated.' })
@@ -67,6 +71,7 @@ export class ContactsController {
   }
 
   @Delete(':id')
+  @RequirePermissions('contacts.delete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Soft delete a contact', description: 'Flags `deletedAt` with a timestamp to hide the record from active queries, preserving database logs.' })
   @ApiResponse({ status: 200, description: 'Contact successfully soft deleted.' })

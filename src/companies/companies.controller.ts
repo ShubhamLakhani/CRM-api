@@ -6,15 +6,18 @@ import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompaniesQueryDto } from './dto/companies-query.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { RequirePermissions } from '../auth/permissions.decorator';
 
 @ApiTags('companies')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('companies')
 export class CompaniesController {
   constructor(private readonly companiesService: CompaniesService) {}
 
   @Post()
+  @RequirePermissions('companies.create')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a company profile', description: 'Registers a corporate account and maps it to the user\'s Organization.' })
   @ApiResponse({ status: 201, description: 'The company profile has been created.' })
@@ -53,6 +56,7 @@ export class CompaniesController {
   }
 
   @Patch(':id')
+  @RequirePermissions('companies.update')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update company properties', description: 'Updates details of an active corporate record.' })
   @ApiResponse({ status: 200, description: 'Company properties successfully updated.' })
@@ -67,6 +71,7 @@ export class CompaniesController {
   }
 
   @Delete(':id')
+  @RequirePermissions('companies.delete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Soft delete a company profile', description: 'Flags `deletedAt` with a timestamp to hide the record from active queries.' })
   @ApiResponse({ status: 200, description: 'Company successfully soft deleted.' })

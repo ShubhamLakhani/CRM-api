@@ -6,15 +6,18 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 import { TasksQueryDto } from './dto/tasks-query.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { RequirePermissions } from '../auth/permissions.decorator';
 
 @ApiTags('tasks')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('tasks')
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   @Post()
+  @RequirePermissions('tasks.create')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new action task', description: 'Registers a task and binds it automatically to the user\'s Organization.' })
   @ApiResponse({ status: 201, description: 'The task has been successfully created.' })
@@ -53,6 +56,7 @@ export class TasksController {
   }
 
   @Patch(':id')
+  @RequirePermissions('tasks.update')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update task properties', description: 'Updates details of an active task and logs audit trace.' })
   @ApiResponse({ status: 200, description: 'Task successfully updated.' })
@@ -67,6 +71,7 @@ export class TasksController {
   }
 
   @Delete(':id')
+  @RequirePermissions('tasks.delete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Soft delete a task', description: 'Appends deletedAt timestamp to task record.' })
   @ApiResponse({ status: 200, description: 'Task successfully soft deleted.' })

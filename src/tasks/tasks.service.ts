@@ -21,10 +21,10 @@ export class TasksService {
     }
 
     if (assigneeId) {
-      const user = await this.prisma.user.findFirst({
-        where: { id: assigneeId, organizationId },
+      const member = await this.prisma.organizationMember.findFirst({
+        where: { userId: assigneeId, organizationId },
       });
-      if (!user) {
+      if (!member) {
         throw new NotFoundException(`Assignee not found in this organization`);
       }
     }
@@ -123,10 +123,10 @@ export class TasksService {
     }
 
     if (updateTaskDto.assigneeId) {
-      const user = await this.prisma.user.findFirst({
-        where: { id: updateTaskDto.assigneeId, organizationId },
+      const member = await this.prisma.organizationMember.findFirst({
+        where: { userId: updateTaskDto.assigneeId, organizationId },
       });
-      if (!user) {
+      if (!member) {
         throw new NotFoundException(`Assignee not found in this organization`);
       }
     }

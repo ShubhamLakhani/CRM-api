@@ -13,7 +13,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string; email: string }) {
+  async validate(payload: { sub: string; email: string; organizationId?: string }) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: {
@@ -21,7 +21,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         email: true,
         name: true,
         role: true,
-        organizationId: true,
       },
     });
 
@@ -29,6 +28,50 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User not found or session expired');
     }
 
-    return user;
+    let organizationId = payload.organizationId;
+    if (!organizationId) {
+      const member = await this.prisma.organizationMember.findFirst({
+        where: { userId: user.id },
+      });
+      organizationId = member?.organizationId;
+    }
+
+    let permissions: string[] = [];
+    let activeRole = user.role;
+
+    if (organizationId) {
+      const member = await this.prisma.organizationMember.findUnique({
+        where: {
+          organizationId_userId: {
+            organizationId,
+            userId: user.id,
+          },
+        },
+        include: {
+          role: {
+            include: {
+              permissions: {
+                include: {
+                  permission: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      if (member) {
+        activeRole = member.roleId;
+        if (member.role) {
+          permissions = member.role.permissions.map((rp) => rp.permission.action);
+        }
+      }
+    }
+
+    return {
+      ...user,
+      role: activeRole,
+      organizationId,
+      permissions,
+    };
   }
 }

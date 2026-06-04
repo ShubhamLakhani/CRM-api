@@ -11,6 +11,9 @@ import { ContactsModule } from './contacts/contacts.module';
 import { DealsModule } from './deals/deals.module';
 import { CompaniesModule } from './companies/companies.module';
 import { TasksModule } from './tasks/tasks.module';
+import { InvitationsModule } from './invitations/invitations.module';
+import { FeaturesModule } from './features/features.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 
 @Module({
   imports: [
@@ -21,6 +24,9 @@ import { TasksModule } from './tasks/tasks.module';
     DealsModule,
     CompaniesModule,
     TasksModule,
+    InvitationsModule,
+    FeaturesModule,
+    OrganizationsModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60000, // 60 seconds

@@ -4,6 +4,7 @@ import * as express from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshDto } from './dto/refresh.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { GetUser } from './get-user.decorator';
 import { Throttle } from '@nestjs/throttler';
@@ -86,12 +87,37 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh user access token', description: 'Regenerates a fresh JWT access token using the refresh token.' })
-  @ApiResponse({ status: 200, description: 'Token successfully refreshed' })
+  @ApiResponse({
+    status: 200,
+    description: 'Token successfully refreshed',
+    schema: {
+      type: 'object',
+      properties: {
+        accessToken: { type: 'string', example: 'eyJhbGciOi...' },
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: 'c8a04a8f-196a-43d1-9b13-e08e4364ca4e' },
+            email: { type: 'string', example: 'user@example.com' },
+            name: { type: 'string', example: 'John Doe' },
+            role: { type: 'string', example: 'ADMIN' },
+            organizationId: { type: 'string', example: '86d5335b-...' },
+            organizationName: { type: 'string', example: 'Workspace A' },
+            activeOrganizationId: { type: 'string', example: '86d5335b-...' },
+            activeOrganizationRole: { type: 'string', example: 'ADMIN' },
+            permissions: { type: 'array', items: { type: 'string' }, example: ['deals.create', 'contacts.create'] },
+          },
+        },
+      },
+    },
+  })
   @ApiResponse({ status: 401, description: 'Invalid refresh request' })
   async refresh(
+    @Body() refreshDto: RefreshDto,
     @Req() req: express.Request,
     @Res({ passthrough: true }) res: express.Response,
   ) {
+    const { organizationId } = refreshDto;
     // Extract refresh token from cookie
     const cookieHeader = req.headers.cookie;
     let refreshToken = '';
@@ -106,7 +132,7 @@ export class AuthController {
 
     const ip = req.ip || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '';
     const ua = req.headers['user-agent'] || '';
-    const result = await this.authService.refresh(refreshToken, ip, ua);
+    const result = await this.authService.refresh(refreshToken, ip, ua, organizationId);
 
     const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('refreshToken', result.refreshToken, {

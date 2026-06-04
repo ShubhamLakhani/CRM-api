@@ -11,13 +11,18 @@ generator client {
 model Organization {
   id        String    @id @default(uuid())
   name      String
-  domain    String?
+  slug      String    @unique
+  logo      String?
+  ownerId   String?
+  owner     User?     @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   // Relations
-  users      User[]
+  members    OrganizationMember[]
+  invites    OrganizationInvite[]
+  features   OrganizationFeature[]
   companies  Company[]
   contacts   Contact[]
   deals      Deal[]
@@ -28,7 +33,7 @@ model Organization {
   @@index([deletedAt])
 }
 
-// 2. User Accounts Mapped to Organization
+// 2. User Accounts Mapped to Organization via memberships
 model User {
   id           String    @id @default(uuid())
   email        String    @unique
@@ -40,8 +45,8 @@ model User {
   deletedAt    DateTime?
 
   // Multi-Tenancy
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships        OrganizationMember[]
+  ownedOrganizations Organization[]       @relation("OrganizationOwner")
 
   // Relations
   createdCompanies Company[]  @relation("CompanyCreator")
@@ -54,9 +59,26 @@ model User {
   activities       Activity[]
   sessions         Session[]
   auditLogs        AuditLog[]
+  sentInvites      OrganizationInvite[] @relation("Inviter")
 
-  @@index([organizationId])
   @@index([deletedAt])
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId         String
+  role           Role         @relation(fields: [roleId], references: [id])
+  joinedAt       DateTime     @default(now())
+  invitedBy      String?
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([roleId])
 }
 
 // 3. Enterprise Company Accounts
@@ -233,14 +255,15 @@ model Activity {
 
 // 8. Session Management (SaaS Readiness Foundations)
 model Session {
-  id           String   @id @default(uuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash    String   @unique
-  ipAddress    String?
-  userAgent    String?
-  createdAt    DateTime @default(now())
-  expiresAt    DateTime
+  id                   String   @id @default(uuid())
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash            String   @unique
+  ipAddress            String?
+  userAgent            String?
+  activeOrganizationId String?
+  createdAt            DateTime @default(now())
+  expiresAt            DateTime
 
   @@index([userId])
 }
@@ -265,4 +288,69 @@ model AuditLog {
   @@index([organizationId])
   @@index([userId])
   @@index([createdAt])
+}
+
+// 10. Organization Invitations
+model OrganizationInvite {
+  id             String       @id @default(uuid())
+  email          String
+  token          String       @unique
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  roleId         String
+  invitedById    String
+  invitedBy      User         @relation("Inviter", fields: [invitedById], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([token])
+  @@index([roleId])
+  @@index([email])
+}
+
+// 11. Role-Based Access Control (RBAC)
+model Role {
+  id          String               @id
+  name        String               @unique
+  permissions RolePermission[]
+  members     OrganizationMember[]
+}
+
+model Permission {
+  id     String           @id
+  action String           @unique
+  roles  RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+// 12. Feature Flags
+model Feature {
+  id            String                @id
+  name          String                @unique
+  description   String?
+  organizations OrganizationFeature[]
+}
+
+model OrganizationFeature {
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  featureId      String
+  feature        Feature      @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  isEnabled      Boolean      @default(true)
+
+  @@id([organizationId, featureId])
+  @@index([organizationId])
+  @@index([featureId])
 }

@@ -21,10 +21,10 @@ export class ContactsService {
     }
 
     if (ownerId) {
-      const user = await this.prisma.user.findFirst({
-        where: { id: ownerId, organizationId },
+      const member = await this.prisma.organizationMember.findFirst({
+        where: { userId: ownerId, organizationId },
       });
-      if (!user) {
+      if (!member) {
         throw new NotFoundException(`Assigned owner not found in this organization`);
       }
     }
@@ -166,10 +166,10 @@ export class ContactsService {
     }
 
     if (updateContactDto.ownerId) {
-      const user = await this.prisma.user.findFirst({
-        where: { id: updateContactDto.ownerId, organizationId },
+      const member = await this.prisma.organizationMember.findFirst({
+        where: { userId: updateContactDto.ownerId, organizationId },
       });
-      if (!user) {
+      if (!member) {
         throw new NotFoundException(`Assigned owner not found in this organization`);
       }
     }
