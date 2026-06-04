@@ -23,6 +23,8 @@ export class NotificationEventListener {
       event: 'TASK_ASSIGNED',
       title: 'New Task Assigned',
       message: `You have been assigned to task: "${payload.title}".`,
+      entityType: 'task',
+      entityId: payload.taskId,
     });
   }
 
@@ -35,6 +37,8 @@ export class NotificationEventListener {
       event: 'TASK_DUE',
       title: 'Task Due Soon',
       message: `Your task "${payload.title}" is due soon.`,
+      entityType: 'task',
+      entityId: payload.taskId,
     });
   }
 
@@ -52,6 +56,8 @@ export class NotificationEventListener {
       event: 'DEAL_WON',
       title: 'Deal Won!',
       message: `Congratulations! The deal "${dealTitle}" has been marked as WON for $${payload.value}.`,
+      entityType: 'deal',
+      entityId: payload.dealId,
     });
   }
 
@@ -69,6 +75,8 @@ export class NotificationEventListener {
         event: 'USER_INVITED',
         title: 'Workspace Invitation',
         message: `You have been invited to join another organization.`,
+        entityType: 'invite',
+        entityId: payload.inviteId,
       });
     } else {
       await this.notificationProducer.addJob('create-notification', {
@@ -77,6 +85,8 @@ export class NotificationEventListener {
         event: 'USER_INVITED',
         title: 'Invitation Sent',
         message: `Invitation successfully sent to ${payload.email}.`,
+        entityType: 'invite',
+        entityId: payload.inviteId,
       });
     }
   }

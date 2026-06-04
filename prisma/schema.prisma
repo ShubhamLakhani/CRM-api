@@ -353,6 +353,8 @@ model Notification {
   event          String       // TASK_ASSIGNED, TASK_DUE, DEAL_WON, USER_INVITED
   title          String
   message        String
+  entityType     String?
+  entityId       String?
   readAt         DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -361,4 +363,5 @@ model Notification {
   @@index([organizationId])
   @@index([readAt])
   @@index([createdAt])
+  @@index([entityType, entityId])
 }

@@ -3,10 +3,12 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { RequirePermissions } from '../auth/permissions.decorator';
 
 @ApiTags('queue')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('queue')
 export class QueueController {
   constructor(
@@ -14,6 +16,7 @@ export class QueueController {
   ) {}
 
   @Get('dead-letter')
+  @RequirePermissions('billing.manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get dead letter queue jobs', description: 'Retrieves all failed/dead-lettered jobs from notifications, emails, and automations.' })
   @ApiResponse({ status: 200, description: 'Returns dead-letter jobs.' })

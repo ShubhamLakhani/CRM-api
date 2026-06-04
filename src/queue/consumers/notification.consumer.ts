@@ -16,13 +16,15 @@ export class NotificationConsumer extends WorkerHost {
 
   async process(job: Job<any, any, string>): Promise<any> {
     this.logger.log(`[Queue Processing] Processing job "${job.name}" (ID: ${job.id}) in queue "notifications" on attempt ${job.attemptsMade} with data: ${JSON.stringify(job.data)}`);
-    const { userId, organizationId, event, title, message } = job.data;
+    const { userId, organizationId, event, title, message, entityType, entityId } = job.data;
     await this.notificationService.createNotification(
       userId,
       organizationId,
       event,
       title,
       message,
+      entityType,
+      entityId,
     );
   }
 

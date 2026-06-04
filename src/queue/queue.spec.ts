@@ -8,6 +8,7 @@ import { NotificationConsumer } from './consumers/notification.consumer';
 import { DeadLetterConsumer } from './consumers/dead-letter.consumer';
 import { NotificationService } from '../notifications/notification.service';
 import { QueueController } from './queue.controller';
+import { PrismaService } from '../database/prisma.service';
 
 describe('Queue Infrastructure', () => {
   let notificationProducer: NotificationProducerService;
@@ -39,6 +40,14 @@ describe('Queue Infrastructure', () => {
         NotificationConsumer,
         DeadLetterConsumer,
         QueueController,
+        {
+          provide: PrismaService,
+          useValue: {
+            organizationMember: {
+              findUnique: jest.fn(),
+            },
+          },
+        },
         {
           provide: NotificationService,
           useValue: { createNotification: jest.fn() },
@@ -194,6 +203,12 @@ describe('Queue Infrastructure', () => {
         data: { userId: '1' },
         attemptsMade: 3,
       });
+    });
+
+    it('should require billing.manage permissions for accessing dead-letter queue (Queue Authorization Test)', () => {
+      const target = queueController.getDeadLetterJobs;
+      const permissions = Reflect.getMetadata('permissions', target);
+      expect(permissions).toEqual(['billing.manage']);
     });
   });
 });
