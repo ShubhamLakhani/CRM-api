@@ -19,6 +19,7 @@ import { RedisModule } from './redis/redis.module';
 import { QueueModule } from './queue/queue.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ActivitiesModule } from './activities/activities.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { ActivitiesModule } from './activities/activities.module';
     QueueModule,
     NotificationsModule,
     ActivitiesModule,
+    AuditLogsModule,
     AuthModule,
     ContactsModule,
     DealsModule,
