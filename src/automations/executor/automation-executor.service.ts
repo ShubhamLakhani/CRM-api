@@ -6,6 +6,7 @@ import { TasksService } from '../../tasks/tasks.service';
 import { NotificationProducerService } from '../../queue/producers/notification-producer.service';
 import { EmailProducerService } from '../../queue/producers/email-producer.service';
 import { AutomationRule, AutomationActionType } from '@prisma/client';
+import { ConditionEvaluatorService } from './condition-evaluator.service';
 
 @Injectable()
 export class AutomationExecutorService {
@@ -19,6 +20,7 @@ export class AutomationExecutorService {
     private readonly tasksService: TasksService,
     private readonly notificationProducer: NotificationProducerService,
     private readonly emailProducer: EmailProducerService,
+    private readonly conditionEvaluator: ConditionEvaluatorService,
   ) {}
 
   async executeRule(rule: AutomationRule, jobData: any) {
@@ -41,7 +43,14 @@ export class AutomationExecutorService {
     // 1. Fetch template resolution context
     const context = await this.templateResolver.resolveContext(entityType, entityId, actorId, organizationId);
 
-    // 2. Fetch actions
+    // 2. Evaluate conditions
+    const conditionResult = this.conditionEvaluator.evaluate(rule.conditionsJson as any[], context);
+    if (!conditionResult.passed) {
+      this.logger.log(`[Execution Trace: ${automationExecutionId}] Rule "${rule.name}" conditions failed: ${conditionResult.reason}`);
+      return { skipped: true, reason: conditionResult.reason };
+    }
+
+    // 3. Fetch actions
     const actions = await this.prisma.automationAction.findMany({
       where: { ruleId: rule.id },
     });

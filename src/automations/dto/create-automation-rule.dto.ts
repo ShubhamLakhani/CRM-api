@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsEnum, IsArray, ValidateNested, ArrayMinSize } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AutomationTrigger, AutomationActionType } from '@prisma/client';
+import { IsAutomationConditions } from './conditions.validator';
 
 export class ActionConfigDto {
   @ApiPropertyOptional()
@@ -82,6 +83,7 @@ export class CreateAutomationRuleDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsAutomationConditions()
   conditionsJson?: any;
 
   @ApiPropertyOptional({ default: true })

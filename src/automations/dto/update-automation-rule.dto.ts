@@ -3,6 +3,7 @@ import { IsString, IsOptional, IsBoolean, IsEnum, IsArray, ValidateNested, Array
 import { Type } from 'class-transformer';
 import { AutomationTrigger } from '@prisma/client';
 import { CreateAutomationActionDto } from './create-automation-rule.dto';
+import { IsAutomationConditions } from './conditions.validator';
 
 export class UpdateAutomationRuleDto {
   @ApiPropertyOptional()
@@ -22,6 +23,7 @@ export class UpdateAutomationRuleDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsAutomationConditions()
   conditionsJson?: any;
 
   @ApiPropertyOptional()

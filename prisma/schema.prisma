@@ -496,5 +496,6 @@ enum AutomationExecutionStatus {
   STARTED
   SUCCESS
   FAILED
+  SKIPPED
 }
 

@@ -37,6 +37,11 @@ describe('Automations Subsystem (e2e)', () => {
 
     prisma = app.get<PrismaService>(PrismaService);
 
+    // Clear any leftover automation rules and executions to ensure a clean test environment
+    await prisma.automationExecution.deleteMany({});
+    await prisma.automationAction.deleteMany({});
+    await prisma.automationRule.deleteMany({});
+
     // 1. Authenticate as the seeded Admin user (Sarah Connor)
     const loginRes = await request(app.getHttpServer())
       .post('/auth/login')
@@ -312,6 +317,9 @@ describe('Automations Subsystem (e2e)', () => {
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
 
+      // Allow background queue worker a moment to process the queued email job
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
       expect(execution).toBeDefined();
       expect(execution.status).toBe('SUCCESS');
       expect(mockEmailService.sendEmail).toHaveBeenCalledWith(
@@ -321,6 +329,149 @@ describe('Automations Subsystem (e2e)', () => {
           html: 'Hello Tony Stark, this is a test.',
         }),
       );
+    });
+  });
+
+  describe('Rule Execution Conditions Engine Integration (E2E)', () => {
+    let matchRuleId: string;
+    let failRuleId: string;
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    afterEach(async () => {
+      if (matchRuleId) {
+        await prisma.automationRule.deleteMany({ where: { id: matchRuleId } });
+        matchRuleId = null;
+      }
+      if (failRuleId) {
+        await prisma.automationRule.deleteMany({ where: { id: failRuleId } });
+        failRuleId = null;
+      }
+      await prisma.contact.deleteMany({
+        where: { email: { in: ['match-condition@example.com', 'fail-condition@example.com'] } },
+      });
+      await prisma.automationExecution.deleteMany({
+        where: { triggerEvent: AutomationTrigger.CONTACT_CREATED },
+      });
+    });
+
+    it('should execute rule successfully when conditions match', async () => {
+      const ruleRes = await request(app.getHttpServer())
+        .post('/automations')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Conditions Match Test',
+          triggerEvent: AutomationTrigger.CONTACT_CREATED,
+          isEnabled: true,
+          conditionsJson: [
+            { field: 'contact.name', operator: 'EQUALS', value: 'Clark Kent' },
+          ],
+          actions: [
+            {
+              actionType: AutomationActionType.SEND_EMAIL,
+              configurationJson: {
+                to: 'match-condition@example.com',
+                subject: 'Match Test',
+                body: 'Hello {{contact.name}}',
+              },
+            },
+          ],
+        });
+
+      expect(ruleRes.status).toBe(HttpStatus.CREATED);
+      matchRuleId = ruleRes.body.id;
+
+      const contactRes = await request(app.getHttpServer())
+        .post('/contacts')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Clark Kent',
+          email: 'match-condition@example.com',
+          status: 'LEAD',
+        });
+
+      expect(contactRes.status).toBe(HttpStatus.CREATED);
+
+      let execution: any = null;
+      for (let i = 0; i < 25; i++) {
+        execution = await prisma.automationExecution.findFirst({
+          where: { ruleId: matchRuleId },
+        });
+        if (execution && execution.status === 'SUCCESS') {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
+      // Allow background queue worker a moment to process the queued email job
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      expect(execution).toBeDefined();
+      expect(execution.status).toBe('SUCCESS');
+      expect(mockEmailService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'match-condition@example.com',
+          subject: 'Match Test',
+          html: 'Hello Clark Kent',
+        }),
+      );
+    });
+
+    it('should skip rule execution when conditions fail', async () => {
+      const ruleRes = await request(app.getHttpServer())
+        .post('/automations')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Conditions Fail Test',
+          triggerEvent: AutomationTrigger.CONTACT_CREATED,
+          isEnabled: true,
+          conditionsJson: [
+            { field: 'contact.name', operator: 'EQUALS', value: 'Bruce Wayne' },
+          ],
+          actions: [
+            {
+              actionType: AutomationActionType.SEND_EMAIL,
+              configurationJson: {
+                to: 'fail-condition@example.com',
+                subject: 'Fail Test',
+                body: 'Hello {{contact.name}}',
+              },
+            },
+          ],
+        });
+
+      expect(ruleRes.status).toBe(HttpStatus.CREATED);
+      failRuleId = ruleRes.body.id;
+
+      const contactRes = await request(app.getHttpServer())
+        .post('/contacts')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Arthur Curry',
+          email: 'fail-condition@example.com',
+          status: 'LEAD',
+        });
+
+      expect(contactRes.status).toBe(HttpStatus.CREATED);
+
+      let execution: any = null;
+      for (let i = 0; i < 25; i++) {
+        execution = await prisma.automationExecution.findFirst({
+          where: { ruleId: failRuleId },
+        });
+        if (execution && execution.status === 'SKIPPED') {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
+      expect(execution).toBeDefined();
+      expect(execution.status).toBe('SKIPPED');
+      expect(execution.metadata).toHaveProperty('skippedReason');
+      expect((execution.metadata as any).skippedReason).toContain('Condition failed: [contact.name]');
+      expect(mockEmailService.sendEmail).not.toHaveBeenCalled();
     });
   });
 });

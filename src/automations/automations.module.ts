@@ -9,6 +9,7 @@ import { AutomationEventListener } from './automation-event.listener';
 import { AutomationConsumer } from '../queue/consumers/automation.consumer';
 import { AutomationExecutorService } from './executor/automation-executor.service';
 import { TemplateResolverService } from './executor/template-resolver.service';
+import { ConditionEvaluatorService } from './executor/condition-evaluator.service';
 
 @Module({
   imports: [
@@ -24,10 +25,12 @@ import { TemplateResolverService } from './executor/template-resolver.service';
     AutomationConsumer,
     AutomationExecutorService,
     TemplateResolverService,
+    ConditionEvaluatorService,
   ],
   exports: [
     AutomationsService,
     AutomationExecutorService,
+    ConditionEvaluatorService,
   ],
 })
 export class AutomationsModule {}

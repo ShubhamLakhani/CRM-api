@@ -96,7 +96,23 @@ export class AutomationConsumer extends WorkerHost {
 
           try {
             // Execute actions
-            await this.executor.executeRule(rule, data);
+            const result = await this.executor.executeRule(rule, data);
+
+            if (result && result.skipped) {
+              await this.prisma.automationExecution.update({
+                where: { id: executionRecord.id },
+                data: {
+                  status: AutomationExecutionStatus.SKIPPED,
+                  completedAt: new Date(),
+                  metadata: {
+                    ...(executionRecord.metadata as any || {}),
+                    skippedReason: result.reason,
+                  },
+                },
+              });
+              this.logger.log(`[Execution Trace: ${automationExecutionId}] Rule ${rule.name} (v${rule.version}) execution skipped: ${result.reason}`);
+              return { success: true, skipped: true };
+            }
 
             // Update execution record to SUCCESS
             await this.prisma.automationExecution.update({

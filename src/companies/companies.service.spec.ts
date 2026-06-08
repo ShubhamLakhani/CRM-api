@@ -3,11 +3,13 @@ import { CompaniesService } from './companies.service';
 import { PrismaService } from '../database/prisma.service';
 import { DomainEventEmitter } from '../events/domain-event-emitter';
 import { DomainEventType } from '../events/domain-events';
+import { PlanEntitlementService } from '../subscription/entitlement.service';
 
 describe('CompaniesService', () => {
   let service: CompaniesService;
   let mockPrismaService: any;
   let mockDomainEventEmitter: any;
+  let mockPlanEntitlementService: any;
 
   beforeEach(async () => {
     mockPrismaService = {
@@ -24,6 +26,10 @@ describe('CompaniesService', () => {
       emit: jest.fn(),
     };
 
+    mockPlanEntitlementService = {
+      canCreateDeal: jest.fn().mockResolvedValue(true),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CompaniesService,
@@ -34,6 +40,10 @@ describe('CompaniesService', () => {
         {
           provide: DomainEventEmitter,
           useValue: mockDomainEventEmitter,
+        },
+        {
+          provide: PlanEntitlementService,
+          useValue: mockPlanEntitlementService,
         },
       ],
     }).compile();

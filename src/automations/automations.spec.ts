@@ -12,6 +12,7 @@ import { EmailProducerService } from '../queue/producers/email-producer.service'
 import { AutomationProducerService } from '../queue/producers/automation-producer.service';
 import { AutomationTrigger, AutomationActionType } from '@prisma/client';
 import { ActivityService } from '../activities/activity.service';
+import { ConditionEvaluatorService } from './executor/condition-evaluator.service';
 
 describe('Automations Subsystem', () => {
   let automationsService: AutomationsService;
@@ -90,6 +91,7 @@ describe('Automations Subsystem', () => {
         AutomationEventListener,
         AutomationExecutorService,
         TemplateResolverService,
+        ConditionEvaluatorService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: RedisService, useValue: mockRedisService },
         { provide: TasksService, useValue: mockTasksService },
