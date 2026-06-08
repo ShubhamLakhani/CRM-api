@@ -1,20 +1,29 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompaniesQueryDto } from './dto/companies-query.dto';
 import { DomainEventEmitter } from '../events/domain-event-emitter';
 import { DomainEventType } from '../events/domain-events';
+import { PlanEntitlementService } from '../subscription/entitlement.service';
 
 @Injectable()
 export class CompaniesService {
   constructor(
     private prisma: PrismaService,
     private eventEmitter: DomainEventEmitter,
+    private planEntitlementService: PlanEntitlementService,
   ) {}
 
   async create(createCompanyDto: CreateCompanyDto, creatorId: string, organizationId: string) {
     const { name, domain, industry, employees, dealValue } = createCompanyDto;
+
+    if (dealValue && dealValue > 0) {
+      const canCreateDeal = await this.planEntitlementService.canCreateDeal(organizationId);
+      if (!canCreateDeal) {
+        throw new ForbiddenException('Resource limit reached: cannot create deal. Please upgrade your subscription plan.');
+      }
+    }
 
     // Create the Company record
     const company = await this.prisma.company.create({

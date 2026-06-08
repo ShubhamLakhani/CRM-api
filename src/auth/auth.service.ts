@@ -74,6 +74,24 @@ export class AuthService {
         },
       });
 
+      // Create subscription
+      await tx.subscription.create({
+        data: {
+          organizationId: org.id,
+          planId: 'FREE',
+          status: 'ACTIVE',
+        },
+      });
+
+      // Create usage metrics
+      await tx.usageMetric.createMany({
+        data: [
+          { organizationId: org.id, metricKey: 'USERS', value: 1 },
+          { organizationId: org.id, metricKey: 'CONTACTS', value: 0 },
+          { organizationId: org.id, metricKey: 'DEALS', value: 0 },
+        ],
+      });
+
       return { user, org, member };
     });
 

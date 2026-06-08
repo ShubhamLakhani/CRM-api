@@ -20,6 +20,9 @@ import { QueueModule } from './queue/queue.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ActivitiesModule } from './activities/activities.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
+import { SubscriptionModule } from './subscription/subscription.module';
+import { AutomationsModule } from './automations/automations.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -31,6 +34,9 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
     NotificationsModule,
     ActivitiesModule,
     AuditLogsModule,
+    SubscriptionModule,
+    AutomationsModule,
+    EmailModule,
     AuthModule,
     ContactsModule,
     DealsModule,

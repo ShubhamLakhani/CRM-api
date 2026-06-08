@@ -5,12 +5,13 @@ import { NotificationProducerService } from './producers/notification-producer.s
 import { EmailProducerService } from './producers/email-producer.service';
 import { AutomationProducerService } from './producers/automation-producer.service';
 import { EmailConsumer } from './consumers/email.consumer';
-import { AutomationConsumer } from './consumers/automation.consumer';
 import { DeadLetterConsumer } from './consumers/dead-letter.consumer';
 import { QueueController } from './queue.controller';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
+    EmailModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -36,7 +37,6 @@ import { QueueController } from './queue.controller';
     EmailProducerService,
     AutomationProducerService,
     EmailConsumer,
-    AutomationConsumer,
     DeadLetterConsumer,
   ],
   exports: [

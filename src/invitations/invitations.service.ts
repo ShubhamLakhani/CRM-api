@@ -6,6 +6,7 @@ import * as bcrypt from 'bcrypt';
 import { AuthService } from '../auth/auth.service';
 import { DomainEventEmitter } from '../events/domain-event-emitter';
 import { DomainEventType } from '../events/domain-events';
+import { PlanEntitlementService } from '../subscription/entitlement.service';
 
 @Injectable()
 export class InvitationsService {
@@ -13,9 +14,15 @@ export class InvitationsService {
     private prisma: PrismaService,
     private authService: AuthService,
     private eventEmitter: DomainEventEmitter,
+    private planEntitlementService: PlanEntitlementService,
   ) {}
 
   async create(createInviteDto: CreateInviteDto, invitedById: string, organizationId: string) {
+    const canInvite = await this.planEntitlementService.canInviteUser(organizationId);
+    if (!canInvite) {
+      throw new ForbiddenException('Resource limit reached: cannot invite more users. Please upgrade your subscription plan.');
+    }
+
     const { email, roleId } = createInviteDto;
 
     // Validate role hierarchy to prevent privilege escalation

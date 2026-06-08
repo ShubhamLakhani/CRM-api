@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { Activity } from '@prisma/client';
+import { requestContextStorage } from '../common/request-context';
 
 @Injectable()
 export class ActivityService {
@@ -15,7 +16,12 @@ export class ActivityService {
     title: string,
     description: string,
     metadata?: any,
-  ): Promise<Activity> {
+  ): Promise<Activity | null> {
+    const store = requestContextStorage.getStore();
+    if (store?.source === 'AUTOMATION') {
+      return null;
+    }
+
     return this.prisma.activity.create({
       data: {
         organizationId,

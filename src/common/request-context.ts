@@ -2,10 +2,13 @@ import { AsyncLocalStorage } from 'async_hooks';
 import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
 import { Observable } from 'rxjs';
 
+export type RequestSource = 'USER' | 'AUTOMATION';
+
 export interface RequestContextStore {
   userId?: string | null;
   organizationId?: string | null;
   ipAddress?: string | null;
+  source?: RequestSource;
 }
 
 export const requestContextStorage = new AsyncLocalStorage<RequestContextStore>();
@@ -26,6 +29,7 @@ export class RequestContextInterceptor implements NestInterceptor {
       userId: user?.id || null,
       organizationId: user?.organizationId || null,
       ipAddress: ipAddress || null,
+      source: 'USER',
     };
 
     return requestContextStorage.run(store, () => next.handle());

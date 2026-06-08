@@ -16,16 +16,98 @@ async function main() {
   await prisma.auditLog.deleteMany({});
   await prisma.organizationMember.deleteMany({});
   await prisma.user.deleteMany({});
+  await prisma.subscription.deleteMany({});
+  await prisma.usageMetric.deleteMany({});
   await prisma.organization.deleteMany({});
+  await prisma.subscriptionPlan.deleteMany({});
 
   console.log('🧹 Cleaned existing database records.');
 
-  // 2. Create Organization (Tenant)
-  const org = await prisma.organization.create({
-    data: {
-      name: 'Apex HQ',
-      slug: 'apex-hq',
-    },
+  // Seed Plans
+  console.log('🌱 Seeding subscription plans...');
+  await prisma.subscriptionPlan.createMany({
+    data: [
+      {
+        id: 'FREE',
+        name: 'Free Plan',
+        description: 'A free tier for evaluation and simple tasks',
+        price: 0.0,
+        maxUsers: 10,
+        maxContacts: 50,
+        maxDeals: 10,
+        aiAssistant: false,
+        emailSync: false,
+        automation: false,
+        clientPortal: false,
+      },
+      {
+        id: 'STARTER',
+        name: 'Starter Plan',
+        description: 'Perfect for small teams getting started',
+        price: 19.0,
+        maxUsers: 20,
+        maxContacts: 150,
+        maxDeals: 30,
+        aiAssistant: true,
+        emailSync: false,
+        automation: false,
+        clientPortal: false,
+      },
+      {
+        id: 'GROWTH',
+        name: 'Growth Plan',
+        description: 'Best for growing businesses needing automations',
+        price: 49.0,
+        maxUsers: 50,
+        maxContacts: 1000,
+        maxDeals: 150,
+        aiAssistant: true,
+        emailSync: true,
+        automation: true,
+        clientPortal: false,
+      },
+      {
+        id: 'AGENCY',
+        name: 'Agency Plan',
+        description: 'Unlimited features for high volume businesses',
+        price: 99.0,
+        maxUsers: 100,
+        maxContacts: 10000,
+        maxDeals: 1000,
+        aiAssistant: true,
+        emailSync: true,
+        automation: true,
+        clientPortal: true,
+      },
+    ],
+  });
+
+  // 2. Create Organization, Subscription, and UsageMetric inside a transaction
+  const org = await prisma.$transaction(async (tx) => {
+    const newOrg = await tx.organization.create({
+      data: {
+        name: 'Apex HQ',
+        slug: 'apex-hq',
+      },
+    });
+
+    await tx.subscription.create({
+      data: {
+        organizationId: newOrg.id,
+        planId: 'FREE',
+        status: 'ACTIVE',
+      },
+    });
+
+    await tx.usageMetric.createMany({
+      data: [
+        { organizationId: newOrg.id, metricKey: 'USERS', value: 2 },
+        { organizationId: newOrg.id, metricKey: 'CONTACTS', value: 3 },
+        { organizationId: newOrg.id, metricKey: 'DEALS', value: 3 },
+      ],
+    });
+
+    return newOrg;
   });
 
   console.log('🏢 Created Tenant Organization: Apex HQ');
@@ -239,6 +321,7 @@ async function main() {
   }
 
   console.log('📝 Generated log entries and activity feed history.');
+
   console.log('✅ Database seeding completed successfully!');
 }
 

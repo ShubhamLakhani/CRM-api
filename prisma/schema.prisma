@@ -30,6 +30,10 @@ model Organization {
   activities Activity[]
   auditLogs  AuditLog[]
   notifications Notification[]
+  subscription Subscription?
+  usageMetrics UsageMetric[]
+  automationRules      AutomationRule[]
+  automationExecutions AutomationExecution[]
 
   @@index([deletedAt])
 }
@@ -365,3 +369,132 @@ model Notification {
   @@index([createdAt])
   @@index([entityType, entityId])
 }
+
+// 14. SaaS Subscription Billing
+model SubscriptionPlan {
+  id             String         @id // "FREE", "STARTER", "GROWTH", "AGENCY"
+  name           String
+  description    String?
+  price          Float          @default(0.0)
+  maxUsers       Int
+  maxContacts    Int
+  maxDeals       Int
+  
+  // Feature Entitlements
+  aiAssistant    Boolean        @default(false)
+  emailSync      Boolean        @default(false)
+  automation     Boolean        @default(false)
+  clientPortal   Boolean        @default(false)
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  
+  subscriptions  Subscription[]
+}
+
+model Subscription {
+  id             String           @id @default(uuid())
+  organizationId String           @unique
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  planId         String
+  plan           SubscriptionPlan @relation(fields: [planId], references: [id])
+  status         String           @default("ACTIVE") // ACTIVE, CANCELED, etc.
+  startDate      DateTime         @default(now())
+  endDate        DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([organizationId])
+  @@index([planId])
+}
+
+model UsageMetric {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  metricKey      String       // USERS, CONTACTS, DEALS
+  value          Int          @default(0)
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, metricKey])
+  @@index([organizationId])
+}
+
+// 15. Automation Rules Engine
+model AutomationRule {
+  id             String               @id @default(uuid())
+  organizationId String
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  triggerEvent   AutomationTrigger
+  conditionsJson Json?                // Sprint 8.2 criteria configuration
+  isEnabled      Boolean              @default(true)
+  version        Int                  @default(1)    // Rule versioning tracker
+  failureCount   Int                  @default(0)    // Consecutive failure tracking
+  lastFailureAt  DateTime?                           // Observability for auto-disable logic
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  // Relations
+  actions        AutomationAction[]
+  executions     AutomationExecution[]
+
+  @@index([organizationId])
+  @@index([triggerEvent])
+  @@index([isEnabled])
+}
+
+model AutomationAction {
+  id                String               @id @default(uuid())
+  ruleId            String
+  rule              AutomationRule       @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  actionType        AutomationActionType
+  configurationJson Json                 // Stores template bodies and dynamic settings
+
+  @@index([ruleId])
+}
+
+model AutomationExecution {
+  id                    String                    @id @default(uuid())
+  automationExecutionId String                    @unique // Distributed trace ID
+  organizationId        String
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ruleId                String
+  rule                  AutomationRule            @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  triggerEvent          String
+  triggerEntityType     String?                   // e.g. "contact", "deal", "task"
+  triggerEntityId       String?
+  status                AutomationExecutionStatus // Type-safe execution status enum
+  startedAt             DateTime
+  completedAt           DateTime?
+  errorMessage          String?
+  metadata              Json?                     // Stores executed rule version, performance metrics, etc.
+  createdAt             DateTime                  @default(now())
+
+  @@index([organizationId])
+  @@index([ruleId])
+  @@index([status])
+}
+
+enum AutomationTrigger {
+  CONTACT_CREATED
+  DEAL_CREATED
+  DEAL_STAGE_CHANGED
+  DEAL_WON
+  TASK_COMPLETED
+  USER_INVITED
+}
+
+enum AutomationActionType {
+  CREATE_TASK
+  SEND_NOTIFICATION
+  SEND_EMAIL
+}
+
+enum AutomationExecutionStatus {
+  STARTED
+  SUCCESS
+  FAILED
+}
+

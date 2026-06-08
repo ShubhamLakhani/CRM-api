@@ -13,7 +13,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       query: {
         $allModels: {
           async $allOperations({ model, operation, args, query }) {
-            const auditedModels = ['Company', 'Contact', 'Deal', 'Task'];
+            const auditedModels = ['Company', 'Contact', 'Deal', 'Task', 'AutomationRule', 'AutomationAction'];
             if (!model || !auditedModels.includes(model)) {
               return query(args);
             }

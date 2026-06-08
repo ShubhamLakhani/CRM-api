@@ -1,19 +1,26 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { ContactsQueryDto } from './dto/contacts-query.dto';
 import { DomainEventEmitter } from '../events/domain-event-emitter';
 import { DomainEventType } from '../events/domain-events';
+import { PlanEntitlementService } from '../subscription/entitlement.service';
 
 @Injectable()
 export class ContactsService {
   constructor(
     private prisma: PrismaService,
     private eventEmitter: DomainEventEmitter,
+    private planEntitlementService: PlanEntitlementService,
   ) {}
 
   async create(createContactDto: CreateContactDto, creatorId: string, organizationId: string) {
+    const canCreate = await this.planEntitlementService.canCreateContact(organizationId);
+    if (!canCreate) {
+      throw new ForbiddenException('Resource limit reached: cannot create contact. Please upgrade your subscription plan.');
+    }
+
     const { name, email, phone, companyId, status, ownerId } = createContactDto;
 
     if (companyId) {
