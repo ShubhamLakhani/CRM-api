@@ -474,4 +474,124 @@ describe('Automations Subsystem (e2e)', () => {
       expect(mockEmailService.sendEmail).not.toHaveBeenCalled();
     });
   });
+
+  describe('Support APIs (E2E)', () => {
+    let supportRuleId: string;
+
+    beforeAll(async () => {
+      // Create a rule and trigger it to ensure we have executions to query and calculate stats on
+      const ruleRes = await request(app.getHttpServer())
+        .post('/automations')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Support APIs Test Rule',
+          triggerEvent: AutomationTrigger.CONTACT_CREATED,
+          isEnabled: true,
+          actions: [
+            {
+              actionType: AutomationActionType.SEND_EMAIL,
+              configurationJson: {
+                to: 'support-test@example.com',
+                subject: 'Stats Test',
+                body: 'Hello',
+              },
+            },
+          ],
+        });
+
+      supportRuleId = ruleRes.body.id;
+
+      // Trigger the rule by creating a contact
+      await request(app.getHttpServer())
+        .post('/contacts')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Support Test Contact',
+          email: 'support-test@example.com',
+          status: 'LEAD',
+        });
+
+      // Wait a moment for execution
+      for (let i = 0; i < 15; i++) {
+        const execution = await prisma.automationExecution.findFirst({
+          where: { ruleId: supportRuleId },
+        });
+        if (execution && execution.status === 'SUCCESS') {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+      // Wait for async worker email mock call
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+
+    afterAll(async () => {
+      if (supportRuleId) {
+        await prisma.automationRule.deleteMany({
+          where: { id: supportRuleId },
+        });
+      }
+      await prisma.contact.deleteMany({
+        where: { email: 'support-test@example.com' },
+      });
+      await prisma.automationExecution.deleteMany({
+        where: { triggerEvent: AutomationTrigger.CONTACT_CREATED },
+      });
+    });
+
+    it('should retrieve metadata envelope successfully', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/automations/metadata')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(HttpStatus.OK);
+      expect(res.body).toHaveProperty('triggers');
+      expect(res.body).toHaveProperty('conditionFields');
+      expect(res.body).toHaveProperty('actionTypes');
+      expect(res.body.triggers.length).toBeGreaterThan(0);
+      expect(res.body.conditionFields.length).toBeGreaterThan(0);
+      expect(res.body.actionTypes.length).toBeGreaterThan(0);
+    });
+
+    it('should list executions with pagination and filters', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/automations/executions')
+        .query({ ruleId: supportRuleId, page: 1, limit: 5 })
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(HttpStatus.OK);
+      expect(res.body).toHaveProperty('data');
+      expect(res.body).toHaveProperty('meta');
+      expect(res.body.meta.total).toBeGreaterThanOrEqual(1);
+      expect(res.body.meta.page).toBe(1);
+      expect(res.body.meta.limit).toBe(5);
+      expect(res.body.data[0].ruleId).toBe(supportRuleId);
+    });
+
+    it('should retrieve overall and rule-specific execution statistics', async () => {
+      // Overall stats
+      const statsRes = await request(app.getHttpServer())
+        .get('/automations/stats')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(statsRes.status).toBe(HttpStatus.OK);
+      expect(statsRes.body).toHaveProperty('totalCount');
+      expect(statsRes.body).toHaveProperty('successCount');
+      expect(statsRes.body).toHaveProperty('failedCount');
+      expect(statsRes.body).toHaveProperty('skippedCount');
+      expect(statsRes.body).toHaveProperty('successRate');
+      expect(statsRes.body.totalCount).toBeGreaterThanOrEqual(1);
+
+      // Rule-specific stats
+      const ruleStatsRes = await request(app.getHttpServer())
+        .get('/automations/stats')
+        .query({ ruleId: supportRuleId })
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(ruleStatsRes.status).toBe(HttpStatus.OK);
+      expect(ruleStatsRes.body.totalCount).toBe(1);
+      expect(ruleStatsRes.body.successCount).toBe(1);
+      expect(ruleStatsRes.body.successRate).toBe(100);
+    });
+  });
 });

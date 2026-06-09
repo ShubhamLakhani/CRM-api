@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AutomationsService } from './automations.service';
 import { CreateAutomationRuleDto } from './dto/create-automation-rule.dto';
 import { UpdateAutomationRuleDto } from './dto/update-automation-rule.dto';
+import { ExecutionsQueryDto } from './dto/executions-query.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
@@ -37,6 +38,39 @@ export class AutomationsController {
   @ApiResponse({ status: 200, description: 'List of rules retrieved successfully.' })
   findAll(@GetUser('organizationId') organizationId: string) {
     return this.automationsService.findAll(organizationId);
+  }
+
+  @Get('metadata')
+  @RequirePermissions('automations.view')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get automation rules trigger/field/action metadata schemas', description: 'Returns metadata schema definitions for rule construction in the UI.' })
+  @ApiResponse({ status: 200, description: 'Metadata returned successfully.' })
+  getMetadata() {
+    return this.automationsService.getMetadata();
+  }
+
+  @Get('executions')
+  @RequirePermissions('automations.view')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List and paginate execution history', description: 'Retrieves automation executions scoped to the tenant with optional status and rule filters.' })
+  @ApiResponse({ status: 200, description: 'Paginated executions list returned successfully.' })
+  findExecutions(
+    @Query() query: ExecutionsQueryDto,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.automationsService.findExecutions(query, organizationId);
+  }
+
+  @Get('stats')
+  @RequirePermissions('automations.view')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get execution statistics', description: 'Retrieves aggregated execution counts and success rate for the tenant or a specific rule.' })
+  @ApiResponse({ status: 200, description: 'Statistics returned successfully.' })
+  getStats(
+    @Query('ruleId') ruleId: string | undefined,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.automationsService.getStats(ruleId, organizationId);
   }
 
   @Get(':id')

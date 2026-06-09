@@ -5,7 +5,43 @@ import { requestContextStorage } from '../common/request-context';
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
-    super();
+    let databaseUrl = process.env.DATABASE_URL;
+
+    if (process.env.NODE_ENV === 'test') {
+      const devDbUrl = process.env.DATABASE_URL;
+      const testDbUrl = process.env.TEST_DATABASE_URL;
+
+      if (!testDbUrl) {
+        throw new Error(
+          'TEST_DATABASE_URL is not defined, but NODE_ENV is set to "test". Isolation check failed.'
+        );
+      }
+
+      if (devDbUrl === testDbUrl) {
+        throw new Error(
+          'E2E tests are attempting to run against a non-test database.'
+        );
+      }
+
+      databaseUrl = testDbUrl;
+
+      if (
+        !databaseUrl ||
+        (databaseUrl.includes('apex_crm') && !databaseUrl.includes('apex_crm_test'))
+      ) {
+        throw new Error(
+          'E2E tests are attempting to run against a non-test database.'
+        );
+      }
+    }
+
+    super({
+      datasources: {
+        db: {
+          url: databaseUrl,
+        },
+      },
+    });
     const rawClient = this;
 
     // Create the extended client with audit logging query extension

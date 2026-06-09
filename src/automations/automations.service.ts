@@ -3,6 +3,7 @@ import { PrismaService } from '../database/prisma.service';
 import { ActivityService } from '../activities/activity.service';
 import { CreateAutomationRuleDto } from './dto/create-automation-rule.dto';
 import { UpdateAutomationRuleDto } from './dto/update-automation-rule.dto';
+import { ExecutionsQueryDto } from './dto/executions-query.dto';
 
 @Injectable()
 export class AutomationsService {
@@ -151,5 +152,234 @@ export class AutomationsService {
     );
 
     return { success: true };
+  }
+
+  getMetadata() {
+    return {
+      triggers: [
+        { value: 'CONTACT_CREATED', label: 'Contact Created' },
+        { value: 'DEAL_CREATED', label: 'Deal Created' },
+        { value: 'DEAL_STAGE_CHANGED', label: 'Deal Stage Changed' },
+        { value: 'DEAL_WON', label: 'Deal Won' },
+        { value: 'TASK_COMPLETED', label: 'Task Completed' },
+        { value: 'USER_INVITED', label: 'User Invited' },
+      ],
+      conditionFields: [
+        {
+          field: 'contact.name',
+          label: 'Contact Name',
+          type: 'STRING',
+          operators: ['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'IS_EMPTY', 'IS_NOT_EMPTY'],
+        },
+        {
+          field: 'contact.email',
+          label: 'Contact Email',
+          type: 'STRING',
+          operators: ['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'IS_EMPTY', 'IS_NOT_EMPTY'],
+        },
+        {
+          field: 'contact.status',
+          label: 'Contact Status',
+          type: 'STRING',
+          operators: ['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'IS_EMPTY', 'IS_NOT_EMPTY'],
+        },
+        {
+          field: 'deal.title',
+          label: 'Deal Title',
+          type: 'STRING',
+          operators: ['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'IS_EMPTY', 'IS_NOT_EMPTY'],
+        },
+        {
+          field: 'deal.value',
+          label: 'Deal Value',
+          type: 'NUMBER',
+          operators: ['EQUALS', 'NOT_EQUALS', 'GREATER_THAN', 'LESS_THAN', 'IS_EMPTY', 'IS_NOT_EMPTY'],
+        },
+        {
+          field: 'deal.stage',
+          label: 'Deal Stage',
+          type: 'STRING',
+          operators: ['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'IS_EMPTY', 'IS_NOT_EMPTY'],
+        },
+        {
+          field: 'task.title',
+          label: 'Task Title',
+          type: 'STRING',
+          operators: ['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'IS_EMPTY', 'IS_NOT_EMPTY'],
+        },
+        {
+          field: 'task.status',
+          label: 'Task Status',
+          type: 'STRING',
+          operators: ['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'IS_EMPTY', 'IS_NOT_EMPTY'],
+        },
+      ],
+      actionTypes: [
+        {
+          value: 'CREATE_TASK',
+          label: 'Create Task',
+          fields: [
+            { name: 'title', label: 'Task Title', type: 'TEMPLATE_STRING', required: true },
+            { name: 'description', label: 'Description', type: 'TEMPLATE_STRING', required: false },
+            {
+              name: 'priority',
+              label: 'Priority',
+              type: 'SELECT',
+              options: ['HIGH', 'MEDIUM', 'LOW', 'NONE'],
+              required: false,
+              defaultValue: 'MEDIUM',
+            },
+            { name: 'dueDateOffsetDays', label: 'Due Date Offset (Days)', type: 'NUMBER', required: false },
+            {
+              name: 'assigneeId',
+              label: 'Assignee',
+              type: 'SELECT_WITH_DYNAMIC',
+              options: [
+                { value: 'ACTOR', label: 'Triggering User (Actor)' },
+                { value: 'OWNER', label: 'Deal/Contact Owner' },
+              ],
+              required: true,
+            },
+          ],
+        },
+        {
+          value: 'SEND_NOTIFICATION',
+          label: 'Send In-App Notification',
+          fields: [
+            { name: 'title', label: 'Notification Title', type: 'TEMPLATE_STRING', required: true },
+            { name: 'message', label: 'Notification Message', type: 'TEMPLATE_STRING', required: true },
+            {
+              name: 'userId',
+              label: 'Recipient User',
+              type: 'SELECT_WITH_DYNAMIC',
+              options: [
+                { value: 'ACTOR', label: 'Triggering User (Actor)' },
+                { value: 'OWNER', label: 'Deal/Contact Owner' },
+              ],
+              required: true,
+            },
+          ],
+        },
+        {
+          value: 'SEND_EMAIL',
+          label: 'Send Email via SMTP',
+          fields: [
+            {
+              name: 'to',
+              label: 'To (Recipient Email)',
+              type: 'SELECT_WITH_DYNAMIC_AND_INPUT',
+              options: [
+                { value: 'ACTOR', label: 'Triggering User\'s Email' },
+                { value: 'OWNER', label: 'Owner\'s Email' },
+                { value: 'CONTACT', label: 'Contact\'s Email' },
+              ],
+              required: true,
+            },
+            { name: 'subject', label: 'Email Subject', type: 'TEMPLATE_STRING', required: true },
+            { name: 'body', label: 'Email HTML Body', type: 'TEMPLATE_STRING', required: true },
+          ],
+        },
+      ],
+    };
+  }
+
+  async findExecutions(query: ExecutionsQueryDto, organizationId: string) {
+    const { ruleId, status } = query;
+    const pageNum = Number(query.page || 1);
+    const limitNum = Number(query.limit || 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: any = {
+      organizationId,
+    };
+
+    if (ruleId) {
+      where.ruleId = ruleId;
+    }
+
+    if (status) {
+      where.status = status;
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.automationExecution.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          rule: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      }),
+      this.prisma.automationExecution.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limitNum);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+      },
+    };
+  }
+
+  async getStats(ruleId: string | undefined, organizationId: string) {
+    const where: any = {
+      organizationId,
+    };
+
+    if (ruleId) {
+      // First verify the rule exists in this tenant
+      const ruleExists = await this.prisma.automationRule.findFirst({
+        where: { id: ruleId, organizationId },
+      });
+      if (!ruleExists) {
+        throw new NotFoundException(`Automation rule with ID ${ruleId} not found in this organization`);
+      }
+      where.ruleId = ruleId;
+    }
+
+    const aggregates = await this.prisma.automationExecution.groupBy({
+      by: ['status'],
+      where,
+      _count: {
+        id: true,
+      },
+    });
+
+    const stats = {
+      STARTED: 0,
+      SUCCESS: 0,
+      FAILED: 0,
+      SKIPPED: 0,
+    };
+
+    let totalCount = 0;
+    aggregates.forEach((group) => {
+      if (group.status in stats) {
+        stats[group.status] = group._count.id;
+        totalCount += group._count.id;
+      }
+    });
+
+    const executedCount = stats.SUCCESS + stats.FAILED;
+    const successRate = executedCount > 0 ? Number(((stats.SUCCESS / executedCount) * 100).toFixed(2)) : 100.0;
+
+    return {
+      totalCount,
+      successCount: stats.SUCCESS,
+      failedCount: stats.FAILED,
+      skippedCount: stats.SKIPPED,
+      startedCount: stats.STARTED,
+      successRate,
+    };
   }
 }

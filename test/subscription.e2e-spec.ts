@@ -30,6 +30,20 @@ describe('Subscription System (e2e)', () => {
     adminToken = loginRes.body.accessToken;
     organizationId = loginRes.body.user.organizationId;
 
+    // Prune extra deals to ensure we have exactly 3 seeded deals
+    await prisma.deal.deleteMany({
+      where: {
+        organizationId,
+        title: {
+          notIn: [
+            'Tesla Solar Roof Integration',
+            'Azure Cloud Migration Services',
+            'GPT-5 Enterprise Partnership',
+          ],
+        },
+      },
+    });
+
     // Set FREE/STARTER plan limits to be very low for testing limit enforcement
     await prisma.subscriptionPlan.update({
       where: { id: 'FREE' },
