@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
 import { AutomationsService } from './automations.service';
 import { AutomationsController } from './automations.controller';
 import { AutomationEventListener } from './automation-event.listener';
@@ -43,6 +44,10 @@ describe('Automations Subsystem', () => {
       automationExecution: {
         create: jest.fn(),
         update: jest.fn(),
+      },
+      organizationMember: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue({ id: 'm1' }),
       },
       user: {
         findUnique: jest.fn().mockResolvedValue({ id: 'u1', name: 'Sarah Connor', email: 'sarah@apex.com' }),
@@ -109,6 +114,7 @@ describe('Automations Subsystem', () => {
 
   describe('AutomationsService', () => {
     it('create should save rule and trigger logActivity', async () => {
+      mockPrismaService.organizationMember.findMany.mockResolvedValue([]);
       mockPrismaService.automationRule.create.mockResolvedValue({ id: 'rule-1', name: 'Assign Task' });
 
       const result = await automationsService.create(
@@ -138,6 +144,54 @@ describe('Automations Subsystem', () => {
         'Rule "Assign Task" was created by Sarah Connor',
         { ruleId: 'rule-1' },
       );
+    });
+
+    it('create should throw BadRequestException if assigneeId does not belong to organization', async () => {
+      mockPrismaService.organizationMember.findMany.mockResolvedValue([
+        { userId: 'u1' },
+      ]);
+
+      await expect(
+        automationsService.create(
+          {
+            name: 'Assign Task',
+            triggerEvent: AutomationTrigger.CONTACT_CREATED,
+            actions: [
+              {
+                actionType: AutomationActionType.CREATE_TASK,
+                configurationJson: { assigneeId: 'non-member-id' },
+              },
+            ],
+          },
+          'u1',
+          'o1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('create should save rule successfully if assigneeId is an organization user ID', async () => {
+      mockPrismaService.organizationMember.findMany.mockResolvedValue([
+        { userId: 'u1' },
+        { userId: 'member-1' },
+      ]);
+      mockPrismaService.automationRule.create.mockResolvedValue({ id: 'rule-2', name: 'Assign Task' });
+
+      const result = await automationsService.create(
+        {
+          name: 'Assign Task',
+          triggerEvent: AutomationTrigger.CONTACT_CREATED,
+          actions: [
+            {
+              actionType: AutomationActionType.CREATE_TASK,
+              configurationJson: { assigneeId: 'member-1' },
+            },
+          ],
+        },
+        'u1',
+        'o1',
+      );
+
+      expect(result).toEqual({ id: 'rule-2', name: 'Assign Task' });
     });
 
     it('update should replace actions, increment version, and log update', async () => {

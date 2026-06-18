@@ -45,8 +45,8 @@ export class AutomationsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get automation rules trigger/field/action metadata schemas', description: 'Returns metadata schema definitions for rule construction in the UI.' })
   @ApiResponse({ status: 200, description: 'Metadata returned successfully.' })
-  getMetadata() {
-    return this.automationsService.getMetadata();
+  getMetadata(@GetUser('organizationId') organizationId: string) {
+    return this.automationsService.getMetadata(organizationId);
   }
 
   @Get('executions')

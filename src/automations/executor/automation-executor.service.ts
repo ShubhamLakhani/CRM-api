@@ -73,6 +73,16 @@ export class AutomationExecutorService {
           resolvedAssigneeId = context.deal?.ownerId || context.contact?.ownerId || actorId;
         }
 
+        // Validate organization membership if assignee is specified
+        if (resolvedAssigneeId) {
+          const isMember = await this.prisma.organizationMember.findFirst({
+            where: { userId: resolvedAssigneeId, organizationId },
+          });
+          if (!isMember) {
+            throw new Error(`Assignee user ${resolvedAssigneeId} does not belong to organization ${organizationId}`);
+          }
+        }
+
         // Calculate Due Date
         let resolvedDueDate: string | undefined = undefined;
         if (config.dueDateOffsetDays) {
@@ -108,7 +118,15 @@ export class AutomationExecutorService {
           resolvedUserId = context.deal?.ownerId || context.contact?.ownerId || actorId;
         }
 
+        // Validate organization membership if target user is specified
         if (resolvedUserId) {
+          const isMember = await this.prisma.organizationMember.findFirst({
+            where: { userId: resolvedUserId, organizationId },
+          });
+          if (!isMember) {
+            throw new Error(`Notification recipient user ${resolvedUserId} does not belong to organization ${organizationId}`);
+          }
+
           this.logger.log(`[Execution Trace: ${automationExecutionId}] Rule ${rule.name} triggering SEND_NOTIFICATION for user ${resolvedUserId}`);
           await this.notificationProducer.addJob('create-notification', {
             userId: resolvedUserId,
@@ -142,6 +160,18 @@ export class AutomationExecutorService {
           }
         } else if (resolvedTo === 'CONTACT') {
           resolvedTo = context.contact?.email;
+        } else if (resolvedTo) {
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (uuidRegex.test(resolvedTo)) {
+            const member = await this.prisma.organizationMember.findFirst({
+              where: { userId: resolvedTo, organizationId },
+              include: { user: { select: { email: true } } },
+            });
+            if (!member || !member.user) {
+              throw new Error(`Email recipient user ${resolvedTo} does not belong to organization ${organizationId}`);
+            }
+            resolvedTo = member.user.email;
+          }
         }
 
         if (resolvedTo) {

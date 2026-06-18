@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { ActivityService } from '../activities/activity.service';
 import { CreateAutomationRuleDto } from './dto/create-automation-rule.dto';
@@ -24,8 +24,48 @@ export class AutomationsService {
     return user ? user.name : 'Unknown User';
   }
 
+  private async validateActionRecipients(actions: any[], organizationId: string) {
+    const members = await this.prisma.organizationMember.findMany({
+      where: { organizationId },
+      select: { userId: true },
+    });
+    const orgUserIds = new Set(members.map((m) => m.userId));
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    for (const action of actions) {
+      const config = action.configurationJson || {};
+      if (action.actionType === 'CREATE_TASK') {
+        const assigneeId = config.assigneeId;
+        if (assigneeId && assigneeId !== 'ACTOR' && assigneeId !== 'OWNER') {
+          if (!orgUserIds.has(assigneeId)) {
+            throw new BadRequestException(`Assignee user ID ${assigneeId} does not belong to this organization`);
+          }
+        }
+      } else if (action.actionType === 'SEND_NOTIFICATION') {
+        const userId = config.userId;
+        if (userId && userId !== 'ACTOR' && userId !== 'OWNER') {
+          if (!orgUserIds.has(userId)) {
+            throw new BadRequestException(`Notification recipient user ID ${userId} does not belong to this organization`);
+          }
+        }
+      } else if (action.actionType === 'SEND_EMAIL') {
+        const to = config.to;
+        if (to && to !== 'ACTOR' && to !== 'OWNER' && to !== 'CONTACT') {
+          if (uuidRegex.test(to)) {
+            if (!orgUserIds.has(to)) {
+              throw new BadRequestException(`Email recipient user ID ${to} does not belong to this organization`);
+            }
+          }
+        }
+      }
+    }
+  }
+
   async create(createDto: CreateAutomationRuleDto, creatorId: string, organizationId: string) {
     const { name, description, triggerEvent, conditionsJson, isEnabled, actions } = createDto;
+
+    await this.validateActionRecipients(actions, organizationId);
 
     const rule = await this.prisma.automationRule.create({
       data: {
@@ -88,6 +128,10 @@ export class AutomationsService {
     const existing = await this.findOne(id, organizationId);
 
     const { name, description, triggerEvent, conditionsJson, isEnabled, actions } = updateDto;
+
+    if (actions) {
+      await this.validateActionRecipients(actions, organizationId);
+    }
 
     const rule = await this.prisma.$transaction(async (tx) => {
       // If actions are provided, delete the old ones and recreate
@@ -158,7 +202,25 @@ export class AutomationsService {
     return { success: true };
   }
 
-  getMetadata() {
+  async getMetadata(organizationId: string) {
+    const members = await this.prisma.organizationMember.findMany({
+      where: {
+        organizationId,
+        user: { deletedAt: null },
+      },
+      select: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    const organizationUsers = members.map((m) => m.user);
+
     return {
       triggers: [
         { value: 'CONTACT_CREATED', label: 'Contact Created' },
@@ -287,6 +349,7 @@ export class AutomationsService {
           ],
         },
       ],
+      organizationUsers,
     };
   }
 
