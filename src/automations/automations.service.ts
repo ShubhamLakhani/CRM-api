@@ -5,6 +5,10 @@ import { CreateAutomationRuleDto } from './dto/create-automation-rule.dto';
 import { UpdateAutomationRuleDto } from './dto/update-automation-rule.dto';
 import { ExecutionsQueryDto } from './dto/executions-query.dto';
 
+export const CONTACT_STATUS_OPTIONS = ['LEAD', 'CONTACTED', 'CUSTOMER', 'CHURNED'];
+export const DEAL_STAGE_OPTIONS = ['LEAD', 'CONTACTED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST'];
+export const TASK_STATUS_OPTIONS = ['BACKLOG', 'TODO', 'IN_PROGRESS', 'DONE', 'CANCELED'];
+
 @Injectable()
 export class AutomationsService {
   constructor(
@@ -180,8 +184,9 @@ export class AutomationsService {
         {
           field: 'contact.status',
           label: 'Contact Status',
-          type: 'STRING',
+          type: 'ENUM',
           operators: ['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'IS_EMPTY', 'IS_NOT_EMPTY'],
+          options: CONTACT_STATUS_OPTIONS,
         },
         {
           field: 'deal.title',
@@ -198,8 +203,9 @@ export class AutomationsService {
         {
           field: 'deal.stage',
           label: 'Deal Stage',
-          type: 'STRING',
+          type: 'ENUM',
           operators: ['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'IS_EMPTY', 'IS_NOT_EMPTY'],
+          options: DEAL_STAGE_OPTIONS,
         },
         {
           field: 'task.title',
@@ -210,8 +216,9 @@ export class AutomationsService {
         {
           field: 'task.status',
           label: 'Task Status',
-          type: 'STRING',
+          type: 'ENUM',
           operators: ['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'IS_EMPTY', 'IS_NOT_EMPTY'],
+          options: TASK_STATUS_OPTIONS,
         },
       ],
       actionTypes: [
