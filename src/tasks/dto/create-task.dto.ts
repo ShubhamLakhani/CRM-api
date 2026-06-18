@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID, IsIn } from 'class-validator';
 
 export class CreateTaskDto {
   @ApiProperty({ description: 'The title/summary of the task', example: 'Conduct discovery call with Tesla Solar engineering leads' })
@@ -14,6 +14,7 @@ export class CreateTaskDto {
 
   @ApiPropertyOptional({ description: 'The task status', enum: ['BACKLOG', 'TODO', 'IN_PROGRESS', 'DONE', 'CANCELED'], default: 'TODO' })
   @IsString()
+  @IsIn(['BACKLOG', 'TODO', 'IN_PROGRESS', 'DONE', 'CANCELED'])
   @IsOptional()
   status?: string;
 
