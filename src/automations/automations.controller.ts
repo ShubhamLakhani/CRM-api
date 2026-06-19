@@ -4,6 +4,7 @@ import { AutomationsService } from './automations.service';
 import { CreateAutomationRuleDto } from './dto/create-automation-rule.dto';
 import { UpdateAutomationRuleDto } from './dto/update-automation-rule.dto';
 import { ExecutionsQueryDto } from './dto/executions-query.dto';
+import { InstantiateTemplateDto } from './dto/instantiate-template.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
@@ -47,6 +48,41 @@ export class AutomationsController {
   @ApiResponse({ status: 200, description: 'Metadata returned successfully.' })
   getMetadata(@GetUser('organizationId') organizationId: string) {
     return this.automationsService.getMetadata(organizationId);
+  }
+
+  @Get('templates')
+  @RequirePermissions('automations.view')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List all available automation templates' })
+  @ApiResponse({ status: 200, description: 'Templates list retrieved successfully.' })
+  getTemplates() {
+    return this.automationsService.getTemplates();
+  }
+
+  @Get('templates/:id')
+  @RequirePermissions('automations.view')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get a single automation template definition' })
+  @ApiResponse({ status: 200, description: 'Template retrieved successfully.' })
+  @ApiResponse({ status: 404, description: 'Template not found.' })
+  getTemplateById(@Param('id') id: string) {
+    return this.automationsService.getTemplateById(id);
+  }
+
+  @Post('templates/:id/instantiate')
+  @RequirePermissions('automations.create')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Instantiate an automation rule from a template' })
+  @ApiResponse({ status: 201, description: 'Rule successfully instantiated.' })
+  @ApiResponse({ status: 400, description: 'Validation or recipient check failed.' })
+  @ApiResponse({ status: 404, description: 'Template not found.' })
+  instantiate(
+    @Param('id') id: string,
+    @Body() instantiateDto: InstantiateTemplateDto,
+    @GetUser('id') userId: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.automationsService.instantiateTemplate(id, instantiateDto, userId, organizationId);
   }
 
   @Get('executions')

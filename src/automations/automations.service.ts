@@ -4,6 +4,8 @@ import { ActivityService } from '../activities/activity.service';
 import { CreateAutomationRuleDto } from './dto/create-automation-rule.dto';
 import { UpdateAutomationRuleDto } from './dto/update-automation-rule.dto';
 import { ExecutionsQueryDto } from './dto/executions-query.dto';
+import { InstantiateTemplateDto } from './dto/instantiate-template.dto';
+import { AUTOMATION_TEMPLATES } from './templates/templates-library.data';
 
 export const CONTACT_STATUS_OPTIONS = ['LEAD', 'CONTACTED', 'CUSTOMER', 'CHURNED'];
 export const DEAL_STAGE_OPTIONS = ['LEAD', 'CONTACTED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST'];
@@ -451,5 +453,76 @@ export class AutomationsService {
       startedCount: stats.STARTED,
       successRate,
     };
+  }
+
+  async getTemplates() {
+    return AUTOMATION_TEMPLATES;
+  }
+
+  async getTemplateById(id: string) {
+    const template = AUTOMATION_TEMPLATES.find((t) => t.id === id);
+    if (!template) {
+      throw new NotFoundException(`Automation template with ID ${id} not found`);
+    }
+    return template;
+  }
+
+  async instantiateTemplate(
+    id: string,
+    instantiateDto: InstantiateTemplateDto,
+    creatorId: string,
+    organizationId: string,
+  ) {
+    const template = await this.getTemplateById(id);
+
+    const name = instantiateDto.name || template.name;
+    const description = instantiateDto.description || template.description;
+    const isEnabled = instantiateDto.isEnabled !== undefined ? instantiateDto.isEnabled : true;
+
+    // Use user-provided actions if specified, otherwise fall back to template defaults
+    const actionsToCreate = instantiateDto.actions || template.actions;
+
+    if (actionsToCreate.length === 0) {
+      throw new BadRequestException('At least one action is required to instantiate this template.');
+    }
+
+    // Validate assignee/recipient references in actions against tenant boundaries
+    await this.validateActionRecipients(actionsToCreate, organizationId);
+
+    const rule = await this.prisma.automationRule.create({
+      data: {
+        organizationId,
+        name,
+        description,
+        triggerEvent: template.triggerEvent,
+        conditionsJson: template.conditionsJson ? JSON.parse(JSON.stringify(template.conditionsJson)) : undefined,
+        isEnabled,
+        version: 1,
+        templateId: template.id,
+        actions: {
+          create: actionsToCreate.map((a) => ({
+            actionType: a.actionType,
+            configurationJson: JSON.parse(JSON.stringify(a.configurationJson)),
+          })),
+        },
+      },
+      include: {
+        actions: true,
+      },
+    });
+
+    const actorName = await this.getActorName(creatorId);
+    await this.activityService.logActivity(
+      organizationId,
+      creatorId,
+      'automation_rule',
+      rule.id,
+      'created',
+      'Automation rule created from template',
+      `Rule "${rule.name}" was instantiated from template "${template.name}" by ${actorName}`,
+      { ruleId: rule.id, templateId: template.id },
+    );
+
+    return rule;
   }
 }

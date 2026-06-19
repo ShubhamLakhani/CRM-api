@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AutomationsService } from './automations.service';
 import { AutomationsController } from './automations.controller';
 import { AutomationEventListener } from './automation-event.listener';
@@ -227,6 +227,85 @@ describe('Automations Subsystem', () => {
         'Rule "New Name" was updated by Sarah Connor',
         { ruleId: 'rule-1' },
       );
+    });
+
+    it('getTemplates should return all static template definitions', async () => {
+      const result = await automationsService.getTemplates();
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0]).toHaveProperty('id');
+      expect(result[0]).toHaveProperty('name');
+    });
+
+    it('getTemplateById should return specific template or throw NotFoundException', async () => {
+      const templates = await automationsService.getTemplates();
+      const firstId = templates[0].id;
+
+      const result = await automationsService.getTemplateById(firstId);
+      expect(result.id).toBe(firstId);
+
+      await expect(automationsService.getTemplateById('invalid-id')).rejects.toThrow(NotFoundException);
+    });
+
+    it('instantiateTemplate should transactionalize rule creation with overrides', async () => {
+      mockPrismaService.organizationMember.findMany.mockResolvedValue([
+        { userId: 'u1' },
+      ]);
+      mockPrismaService.automationRule.create.mockResolvedValue({
+        id: 'instantiated-rule-1',
+        name: 'Custom New Lead Follow Up',
+        templateId: 'new-lead-follow-up',
+      });
+
+      const result = await automationsService.instantiateTemplate(
+        'new-lead-follow-up',
+        {
+          name: 'Custom New Lead Follow Up',
+        },
+        'u1',
+        'o1',
+      );
+
+      expect(result.id).toBe('instantiated-rule-1');
+      expect(mockPrismaService.automationRule.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            name: 'Custom New Lead Follow Up',
+            templateId: 'new-lead-follow-up',
+          }),
+        }),
+      );
+      expect(mockActivityService.logActivity).toHaveBeenCalledWith(
+        'o1',
+        'u1',
+        'automation_rule',
+        'instantiated-rule-1',
+        'created',
+        'Automation rule created from template',
+        expect.any(String),
+        { ruleId: 'instantiated-rule-1', templateId: 'new-lead-follow-up' },
+      );
+    });
+
+    it('instantiateTemplate should validate tenant boundaries for custom actions overrides', async () => {
+      mockPrismaService.organizationMember.findMany.mockResolvedValue([
+        { userId: 'u1' },
+      ]);
+
+      await expect(
+        automationsService.instantiateTemplate(
+          'new-lead-follow-up',
+          {
+            actions: [
+              {
+                actionType: AutomationActionType.CREATE_TASK,
+                configurationJson: { assigneeId: 'stranger-id' },
+              },
+            ],
+          },
+          'u1',
+          'o1',
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

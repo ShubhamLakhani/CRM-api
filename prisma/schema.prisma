@@ -433,6 +433,7 @@ model AutomationRule {
   version        Int                  @default(1)    // Rule versioning tracker
   failureCount   Int                  @default(0)    // Consecutive failure tracking
   lastFailureAt  DateTime?                           // Observability for auto-disable logic
+  templateId     String?                             // Source template tracking
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
